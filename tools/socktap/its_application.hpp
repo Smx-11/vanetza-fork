@@ -47,16 +47,15 @@ private:
     void on_timer(vanetza::Clock::time_point);
 
     void start_receive();
+    void sendCAMToServer(const std::string& data, int size);
+    void sendToServer(u_int64_t* dataToSend, int size);
     void create_CPM(const json& j);
-    void sendToServer(const std::string& data, int size);
     void sendDenm(const json& j);
     void handle_message(std::size_t bytes_transferred);
     void handle_receive_error(const std::error_code& error);
 
     int splitData(char* buffer, Denm_Data* data);
-       
-    void populateStruct( char* data,Denm_Data* denm_data, int index);  
-   
+    void populateStruct(char* data, Denm_Data* denm_data, int index);    
 
     vanetza::PositionProvider& positioning_;
     vanetza::Runtime& runtime_;
@@ -76,7 +75,7 @@ private:
     asio::ip::udp::socket cam_socket;                    // member socket
     asio::ip::udp::endpoint cam_endpoint;
 
-    std::array<char, 2048> recv_buffer;
+    std::array<char, 1024> recv_buffer;
     
 };
 
