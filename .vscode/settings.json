@@ -70,6 +70,24 @@
         "constr_sequence.h": "c",
         "longitudinalaccelerationvalue.h": "c",
         "nativeenumerated.h": "c",
-        "headingconfidence.h": "c"
+        "headingconfidence.h": "c",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "strstream": "cpp",
+        "bitset": "cpp",
+        "cfenv": "cpp",
+        "codecvt": "cpp",
+        "complex": "cpp",
+        "csetjmp": "cpp",
+        "csignal": "cpp",
+        "forward_list": "cpp",
+        "any": "cpp",
+        "optional": "cpp",
+        "regex": "cpp",
+        "rope": "cpp",
+        "slist": "cpp",
+        "scoped_allocator": "cpp",
+        "shared_mutex": "cpp",
+        "valarray": "cpp"
     }
 }
