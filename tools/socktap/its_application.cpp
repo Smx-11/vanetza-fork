@@ -422,7 +422,22 @@ void ITSApplication::schedule_timer()
 void ITSApplication::on_timer(Clock::time_point)
 {
     schedule_timer();
-    sendDenm();
+    json j;
+
+    // Add empty array
+    j["proto2Objects"] = json::array();
+
+    // Add proto2Event object
+    j["proto2Event"] = {
+        {"eventID", 1},
+        {"eventType", "9"},
+        {"origin", "1"},
+        {"lat", 52.3456},
+        {"lon", -8.239},
+        {"altitude", 3},
+        {"radius", 900}
+    };
+    this->sendDenm(j);
     
     vanetza::asn1::Cam message;
 
