@@ -248,7 +248,7 @@ void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::
     prefix("Situation Container") << "(null)" << "\n";
 }
 }
-/*void print_indentedCPM(std::ostream& os, const asn1::Cpm& message, const std::string& indent, unsigned level)
+void print_indentedCPM(std::ostream& os, const asn1::Cpm& message, const std::string& indent, unsigned level)
 {
     auto prefix = [&](const char* field) -> std::ostream& {
         for (unsigned i = 0; i < level; ++i) {
@@ -306,15 +306,14 @@ void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::
     --level; // end management container
 
     // Perceived Object Container
-    prefix("Perceived Object Container") << "\n";
+   prefix("Perceived Object Container") << "\n";
     ++level;
 
     // Iterate over perceived objects (if there are multiple)
-    const PerceivedObjectContainer_t& perceived_objects = cpm.cpmParameters.perceivedObjectContainer;
-    int count = perceived_objects.list.count;
+const PerceivedObjectContainer_t& perceived_objects = *cpm.cpmParameters.perceivedObjectContainer;
 
-    for (int i = 0; i < count; ++i) {
-        prefix(("Perceived Object " + std::to_string(i+1)).c_str()) << "\n";
+for (int i = 0; i < perceived_objects.list.count; ++i) {
+    prefix(("Perceived Object " + std::to_string(i+1)).c_str()) << "\n";
         ++level;
         const PerceivedObject_t& obj = *perceived_objects.list.array[i];
 
@@ -336,8 +335,8 @@ void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::
 
         prefix("Z Distance") << "\n";
         ++level;
-        prefix("Value") << obj.zDistance.value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.zDistance.confidence) << "\n";
+        prefix("Value") << obj.zDistance->value << "\n";
+        prefix("Confidence") << static_cast<int>(obj.zDistance->confidence) << "\n";
         --level;
 
         prefix("X Speed") << "\n";
@@ -354,40 +353,37 @@ void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::
 
         prefix("X Acceleration") << "\n";
         ++level;
-        prefix("Longitudinal Acceleration Value") << obj.xAcceleration.longitudinalAccelerationValue << "\n";
-        prefix("Longitudinal Acceleration Confidence") << static_cast<int>(obj.xAcceleration.longitudinalAccelerationConfidence) << "\n";
+        prefix("Longitudinal Acceleration Value") << obj.xAcceleration->longitudinalAccelerationValue << "\n";
+        prefix("Longitudinal Acceleration Confidence") << static_cast<int>(obj.xAcceleration->longitudinalAccelerationConfidence) << "\n";
         --level;
 
         prefix("Yaw Angle") << "\n";
         ++level;
-        prefix("Value") << obj.yawAngle.value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.yawAngle.confidence) << "\n";
+        prefix("Value") << obj.yawAngle->value << "\n";
+        prefix("Confidence") << static_cast<int>(obj.yawAngle->confidence) << "\n";
         --level;
 
         prefix("Planar Object Dimension 1") << "\n";
         ++level;
-        prefix("Value") << obj.planarObjectDimension1.value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.planarObjectDimension1.confidence) << "\n";
+        prefix("Value") << obj.planarObjectDimension1->value << "\n";
+        prefix("Confidence") << static_cast<int>(obj.planarObjectDimension1->confidence) << "\n";
         --level;
 
         prefix("Vertical Object Dimension") << "\n";
         ++level;
-        prefix("Value") << obj.verticalObjectDimension.value << "\n";
+        prefix("Value") << obj.verticalObjectDimension->value << "\n";
         
-        prefix("Confidence") << static_cast<int>(obj.verticalObjectDimension.confidence) << "\n";
+        prefix("Confidence") << static_cast<int>(obj.verticalObjectDimension->confidence) << "\n";
         --level;
-
-        prefix("Object Reference Point") << static_cast<int>(obj.objectRefPoint) << "\n";
-
-        --level;
-    }
-
+        prefix("objectRefPoint") << obj.objectRefPoint << "\n";
+}
+    --level; // end perceived object container
     prefix("Number Of Perceived Objects") << cpm.cpmParameters.numberOfPerceivedObjects << "\n";
 
-    --level; // end perceived object container
+    
     --level; // end cpmParameters
     --level; // end CPM
-}*/
+}
 
 void CamApplication::indicate(const DataIndication& indication, UpPacketPtr packet)
 {
@@ -434,7 +430,7 @@ void CamApplication::indicate(const DataIndication& indication, UpPacketPtr pack
         std::cout << "Received CPM with decodable content" << std::endl;
         if (print_rx_msg_) {
              std::cout << "Received CPM contains\n";
-            // print_indentedCPM(std::cout, *cpm, "  ", 1);
+         print_indentedCPM(std::cout, *cpm, "  ", 1);
         
     }
 
