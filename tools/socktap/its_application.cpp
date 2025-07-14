@@ -422,7 +422,7 @@ void ITSApplication::schedule_timer()
 void ITSApplication::on_timer(Clock::time_point)
 {
     schedule_timer();
-
+    sendDenm();
     
     vanetza::asn1::Cam message;
 
