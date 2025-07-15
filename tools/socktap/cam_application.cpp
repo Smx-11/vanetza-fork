@@ -11,7 +11,7 @@
 #include <exception>
 #include <functional>
 #include <iostream>
-
+#include <nlohmann/json.hpp>
 // This is a very simple CA application sending CAMs at a fixed rate.
 
 using namespace vanetza;
@@ -125,10 +125,7 @@ int decodeCAM(const asn1::Cam& recvd, char* message){
         );
     return strlen(message);
 }
-int decodeDENM(const asn1::Denm recvd, char* message){
- const ItsPduHeader_t& header = recvd->header;
-   std::cout << "PV" << header.protocolVersion << std::endl;
-}
+
 /*void CamApplication::indicate(const DataIndication& indication, UpPacketPtr packet)
 {
     printf("Received MEssage\n\n");

@@ -29,9 +29,10 @@ ITSApplication::ITSApplication(PositionProvider& positioning, Runtime& rt, asio:
     schedule_timer();    
     this->station_id = 1;
     this->server_port = 9000;
-    this->serverIP = strdup("192.168.1.124");
+    this->serverIP = strdup("192.168.1.100");
     createSocket();
     this->start_receive();
+	
 }
 void ITSApplication::sendCAMToServer(const std::string& data, int size) {
     std::cout << "sending to server" << std::endl;
@@ -103,12 +104,12 @@ void ITSApplication::create_CPM(const json& j){
 
         // 2. TimeOfMeasurement (optional: set to now or 0)
         asn_obj->timeOfMeasurement = 0;  // set appropriately if needed
-
+    
         // 3. x/y Distance (lat/lon scaled)
-        asn_obj->xDistance.value = obj.value("lat", 0);;  // WGS84 lat scaled
+        asn_obj->xDistance.value = obj.value("lat", 0);  // WGS84 lat scaled
         asn_obj->xDistance.confidence = obj.value("positionConfidence", 100);
 
-        asn_obj->yDistance.value = obj.value("lon", 0);;
+        asn_obj->yDistance.value = obj.value("lon", 0);
         asn_obj->yDistance.confidence = obj.value("positionConfidence", 100);
 
         // 4. zDistance (altitude, optional)
@@ -202,58 +203,46 @@ void ITSApplication::handle_receive_error(const std::error_code& error){
     std::cerr << "Receive error: " << error.message() << std::endl;
     
 }
-
 void ITSApplication::handle_message(std::size_t bytes_transferred){
-    const char* message = 
-    "{\"objectID\":12345,"
-    "\"speed\":80,"
-    "\"speedConfidence\":1,"
-    "\"longAcc\":5,"
-    "\"longAccConfidence\":2,"
-    "\"heading\":9000,"
-    "\"headingConfidence\":3,"
-    "\"lat\":523456789,"
-    "\"lon\":134567890,"
-    "\"length\":400,"
-    "\"lengthConfidence\":1,"
-    "\"lane\":2,"
-    "\"laneConfidence\":1,"
-    "\"altitude\":300,"
-    "\"altitudeConfidence\":1,"
-    "\"vehicleLength\":400,"
-    "\"vehicleLengthConfidence\":1,"
-    "\"positionConfidence\":2}";
-    
-   
-    json j = json::parse(message);  // parse the inner object
 
-        json proto2;
-        proto2["proto2Objects"] = json::array();    // create array
-        proto2["proto2Objects"].push_back(j);       // add your object inside array
-
-        proto2["proto2Event"] = json::object();     // add empty proto2Event object
-
-        std::string jsonStr = proto2.dump(); 
-  //  std::string jsonStr = j.dump();
-     
-    this->sendCAMToServer(jsonStr,jsonStr.size());
     std::string data(this->recv_buffer.data(), bytes_transferred);  // Only use valid part of buffer
     std::cout << "[Received UDP data]: " << data << std::endl; 
     try {
         // Parse JSON from received data
         nlohmann::json proto2json = nlohmann::json::parse(data);
         
-        // Pretty print JSON (4 spaces indentation)
+        // print json
         std::cout << "[Parsed proto2 received]:\n" << proto2json.dump(4) << std::endl;
-        if (proto2json["proto2Objects"].empty()) {
-            //objects empty is evet object -> send DENM
+        if(!proto2json["objects"].empty()){
+            //cpm
+            this->create_CPM(proto2json["objects"]);
+        }
+        if (!proto2json["events"].empty()) {
+    const auto& events = proto2json["events"];
+    if (events.is_array()) {
+        for (const auto& event : events) {
+            // Create a JSON object with the single event
+            nlohmann::json singleEventJson = proto2json;  // copy original JSON
+            singleEventJson["events"] = event;            // replace with single event
+            //oi
+            std::cout << "Sending DENM for one event" << std::endl;
+            this->sendDenm(singleEventJson);
+        }
+    } else if (events.is_object()) {
+        std::cout << "Sending DENM for single event" << std::endl;
+        this->sendDenm(proto2json);
+    } else {
+        std::cerr << "events is neither array nor object" << std::endl;
+    }
+}
+       /*if (proto2json["proto2Objects"].empty()) {
+            //objects empty is event object -> send DENM
             std::cout << "Only proto2Event filled " << std::endl;
             this->sendDenm(proto2json);
         }else if(proto2json["proto2Events"].empty()){
             //gonna be objects so prepare CPM
-            this->create_CPM(proto2json["proto2Objects"]);
             
-        }       
+        }*/       
     } catch (nlohmann::json::parse_error& e) {
         std::cerr << "JSON parse error: " << e.what() << std::endl;
     }
@@ -295,10 +284,8 @@ int ITSApplication::createSocket(){
     
     //this->cam_socket = asio::ip::udp::socket socket(io_service);
     cam_socket.open(asio::ip::udp::v4());
-   // this->cam_endpoint = asio::ip::udp::endpoint(asio::ip::address::from_string(this->serverIP), this->server_port);
-    //local testing
-    this->cam_endpoint = asio::ip::udp::endpoint(asio::ip::address::from_string("239.118.122.97"),8888);
-    return 0;
+   this->cam_endpoint = asio::ip::udp::endpoint(asio::ip::address::from_string(this->serverIP), this->server_port);
+   return 0;
 }
 
 
@@ -409,7 +396,17 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
     if(cam && send_to_server){
         char message [500];
         int size = decode(*cam, message);
-        this->sendToServer((u_int64_t*)message, size);
+         json j = json::parse(message);  // parse the inner object
+
+        json proto2;
+        proto2["proto2Objects"] = json::array();    // create array
+        proto2["proto2Objects"].push_back(j);       // add your object inside array
+
+        proto2["proto2Event"] = json::object();     // add empty proto2Event object
+
+        std::string jsonStr = proto2.dump();    
+        this->sendCAMToServer(jsonStr,jsonStr.size());
+        //this->sendToServer((u_int64_t*)message, size);
     }
     
 }
@@ -422,23 +419,6 @@ void ITSApplication::schedule_timer()
 void ITSApplication::on_timer(Clock::time_point)
 {
     schedule_timer();
-    json j;
-
-    // Add empty array
-    j["proto2Objects"] = json::array();
-
-    // Add proto2Event object
-    j["proto2Event"] = {
-        {"eventID", 1},
-        {"eventType", "9"},
-        {"origin", "1"},
-        {"lat", 52.3456},
-        {"lon", -8.239},
-        {"altitude", 3},
-        {"radius", 900}
-    };
-    this->sendDenm(j);
-    
     vanetza::asn1::Cam message;
 
     ItsPduHeader_t& header = message->header;
@@ -498,7 +478,7 @@ void ITSApplication::on_timer(Clock::time_point)
         print_indented(std::cout, message, "  ", 1);
     }
 
-  /*  DownPacketPtr packet { new DownPacket() };
+    DownPacketPtr packet { new DownPacket() };
     packet->layer(OsiLayer::Application) = std::move(message);
 
     DataRequest request;
@@ -509,13 +489,13 @@ void ITSApplication::on_timer(Clock::time_point)
     auto confirm = Application::request(request, std::move(packet));
     if (!confirm.accepted()) {
         throw std::runtime_error("CAM application data request failed");
-    }*/
+    }
 }
 
 void ITSApplication::sendDenm(const json& j){
 
    // printf("sending denm: %ld %ld %d\n", denm_data->type, denm_data->lat, denm_data->lon );
-    const auto& proto2event = j["proto2Event"];
+    const auto& proto2event = j["events"];
     int counter  = 1;
     vanetza::asn1::Denm message;
 
@@ -614,16 +594,29 @@ void ITSApplication::sendDenm(const json& j){
 
     SituationContainer* situation = vanetza::asn1::allocate<SituationContainer_t>();
    // situation->eventType.causeCode = 9;
-    situation->eventType.causeCode = atoi(proto2event.value("eventType", "9").c_str());
+    
+    const std::string eventTypeStr = proto2event.value("eventType", "unknown");
+
+    int causeCode = 0;  // default code if not recognized
+
+    if (eventTypeStr == "speeding") {
+        causeCode = 7;
+    } else if (eventTypeStr == "accident") {
+        causeCode = 10;
+    } else if (eventTypeStr == "roadwork") {
+        causeCode = 12;
+    }
+// add other mappings as needed
+
+    situation->eventType.causeCode = causeCode;
     situation->eventType.subCauseCode = 0;
     message->denm.situation = situation;
      //print generated DENM
     std::cout << "Generated DENM contains\n";
     asn_fprint(stdout, &asn_DEF_DENM,message.operator->());
-
+        
     std::string error;
 	if (!message.validate(error)) {
-        vanetza::asn1::free(asn_DEF_DENM, message.operator->());
 		throw std::runtime_error("Invalid DENM: " + error);
 	}
     
@@ -638,10 +631,7 @@ void ITSApplication::sendDenm(const json& j){
     request.transport_type = geonet::TransportType::SHB;
     request.communication_profile = geonet::CommunicationProfile::ITS_G5;
 
-   
-    
     //print_indented_denm(std::cout, message, "  ", 1);
-    
 
     auto confirm = Application::request(request, std::move(packet));
     if (!confirm.accepted()) {
@@ -650,3 +640,4 @@ void ITSApplication::sendDenm(const json& j){
 
 
 }
+
