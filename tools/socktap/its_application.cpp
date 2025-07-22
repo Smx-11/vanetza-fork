@@ -104,9 +104,21 @@ void ITSApplication::create_CPM(const json& j){
 
         // 2. TimeOfMeasurement (optional: set to now or 0)
         asn_obj->timeOfMeasurement = 0;  // set appropriately if needed
-    
+         ReferencePosition_t& posA = *vanetza::asn1::allocate<ReferencePosition_t>();
+        posA.latitude = 487668616;    // 52.520000° N (Berlin)
+        posA.longitude = 0;   // 13.405000° E
+
+        ReferencePosition_t& posB = *vanetza::asn1::allocate<ReferencePosition_t>();
+        posB.latitude = obj.value("lat", 0);    // 52.521000° N (~1 km north)
+        posB.longitude = 0;   // same longitude
+        //oi
+
+
+        units::Length d = distance(posA, posB);
+          std::cout << "Distance = " << d.value() << " meters" << std::endl;
         // 3. x/y Distance (lat/lon scaled)
-        asn_obj->xDistance.value = obj.value("lat", 0);  // WGS84 lat scaled
+        //asn_obj->xDistance.value = obj.value("lat", 0);  // WGS84 lat scaled
+        asn_obj->xDistance.value = d.value();
         asn_obj->xDistance.confidence = obj.value("positionConfidence", 100);
 
         asn_obj->yDistance.value = obj.value("lon", 0);
@@ -119,7 +131,7 @@ void ITSApplication::create_CPM(const json& j){
             
             asn_obj->zDistance->value = obj.value("altitude", 0.0); 
             asn_obj->zDistance->confidence = obj.value("altitudeConfidence", 100);
-        }
+        }\
 
         // 5. Speed
         asn_obj->xSpeed.value = obj.value("speed", 0);;  
@@ -418,6 +430,38 @@ void ITSApplication::schedule_timer()
 
 void ITSApplication::on_timer(Clock::time_point)
 {
+   /*  ReferencePosition_t& posA = *vanetza::asn1::allocate<ReferencePosition_t>();
+posA.latitude = 525200000;    // 52.520000° N (Berlin)
+posA.longitude = 0;   // 13.405000° E
+
+ReferencePosition_t& posB = *vanetza::asn1::allocate<ReferencePosition_t>();
+posB.latitude = 525245000;    // 52.521000° N (~1 km north)
+posB.longitude = 0;   // same longitude
+//oi
+
+
+units::Length d = distance(posA, posB);
+
+
+    // Print the result (in meters)
+    std::cout << "Distance = " << d.value() << " meters" << std::endl;
+
+
+      ReferencePosition_t& posC = *vanetza::asn1::allocate<ReferencePosition_t>();
+posC.latitude = 0;    // 52.520000° N (Berlin)
+posC.longitude = 134050000;;   // 13.405000° E
+
+ReferencePosition_t& posD = *vanetza::asn1::allocate<ReferencePosition_t>();
+posD.latitude = 0;    // 52.521000° N (~1 km north)
+posD.longitude = 134051000;;   // same longitude
+//oi
+
+
+units::Length d2 = distance(posC, posD);
+
+
+    // Print the result (in meters)
+    std::cout << "Distance = " << d2.value() << " meters" << std::endl;*/
     schedule_timer();
     vanetza::asn1::Cam message;
 
