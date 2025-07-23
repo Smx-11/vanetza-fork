@@ -11,6 +11,7 @@
 #include <exception>
 #include <functional>
 #include <iostream>
+#include <vanetza/geonet/position_vector.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
@@ -104,7 +105,7 @@ void ITSApplication::create_CPM(const json& j){
 
         // 2. TimeOfMeasurement (optional: set to now or 0)
         asn_obj->timeOfMeasurement = 0;  // set appropriately if needed
-         ReferencePosition_t& posA = *vanetza::asn1::allocate<ReferencePosition_t>();
+        ReferencePosition_t& posA = *vanetza::asn1::allocate<ReferencePosition_t>();
         posA.latitude = 487668616;    // 52.520000° N (Berlin)
         posA.longitude = 0;   // 13.405000° E
 
@@ -115,13 +116,44 @@ void ITSApplication::create_CPM(const json& j){
 
 
         units::Length d = distance(posA, posB);
-          std::cout << "Distance = " << d.value() << " meters" << std::endl;
+        std::cout << "Distance lat = " << d.value() << " meters" << std::endl;
         // 3. x/y Distance (lat/lon scaled)
         //asn_obj->xDistance.value = obj.value("lat", 0);  // WGS84 lat scaled
-        asn_obj->xDistance.value = d.value();
+        // xDistance = 100 -> 1 meter
+        if(d.value() > 132.767 ){
+            //object to distant set max distance
+            std::cout << "Demasiado longe positivo" << std::endl;
+            asn_obj->xDistance.value = 132767;
+        }else if ( d.value() < -132678){
+            std::cout << "Demasiado longe negativo" << std::endl;
+            asn_obj->xDistance.value = -132768;
+        }else{
+            std::cout << "Dentro do range" << std::endl;
+            asn_obj->xDistance.value = d.value()*100;
+        }
+    
         asn_obj->xDistance.confidence = obj.value("positionConfidence", 100);
+         ReferencePosition_t& posC = *vanetza::asn1::allocate<ReferencePosition_t>();
+        posC.latitude = 0;    // 52.520000° N (Berlin)
+        posC.longitude = 11432067;   // 13.405000° E
 
-        asn_obj->yDistance.value = obj.value("lon", 0);
+        ReferencePosition_t& posD = *vanetza::asn1::allocate<ReferencePosition_t>();
+        posD.latitude = 0;    // 52.521000° N (~1 km north)
+        posD.longitude = obj.value("lon", 0);   // same longitude
+        units::Length dlon = distance(posC ,posD);
+        std::cout << "Distance long= " << dlon.value() << " meters" << std::endl;
+          if(dlon.value() > 132.767 ){
+            //object to distant set max distance
+            std::cout << "Demasiado longe positivo" << std::endl;
+            asn_obj->yDistance.value = 132767;
+        }else if ( dlon.value() < -132.678){
+            std::cout << "Demasiado longe negativo" << std::endl;
+            asn_obj->yDistance.value = -132768;
+        }else{
+            std::cout << "Dentro do range" << std::endl;
+            asn_obj->yDistance.value = dlon.value()*100;
+        }
+        //asn_obj->yDistance.value = obj.value("lon", 0);
         asn_obj->yDistance.confidence = obj.value("positionConfidence", 100);
 
         // 4. zDistance (altitude, optional)
@@ -131,7 +163,7 @@ void ITSApplication::create_CPM(const json& j){
             
             asn_obj->zDistance->value = obj.value("altitude", 0.0); 
             asn_obj->zDistance->confidence = obj.value("altitudeConfidence", 100);
-        }\
+        }
 
         // 5. Speed
         asn_obj->xSpeed.value = obj.value("speed", 0);;  
