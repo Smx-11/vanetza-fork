@@ -471,7 +471,7 @@ void CamApplication::on_timer(Clock::time_point)
     BasicContainer_t& basic = cam.camParameters.basicContainer;
     basic.stationType = StationType_passengerCar;
     copy(position, basic.referencePosition);
-
+   
     cam.camParameters.highFrequencyContainer.present = HighFrequencyContainer_PR_basicVehicleContainerHighFrequency;
 
     BasicVehicleContainerHighFrequency& bvc = cam.camParameters.highFrequencyContainer.choice.basicVehicleContainerHighFrequency;

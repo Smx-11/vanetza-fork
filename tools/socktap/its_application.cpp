@@ -113,8 +113,10 @@ void ITSApplication::create_CPM(const json& j){
         posB.latitude = obj.value("lat", 0);    // 52.521000° N (~1 km north)
         posB.longitude = 0;   // same longitude
         //oi
-
-
+       
+        
+       
+       
         units::Length d = distance(posA, posB);
         std::cout << "Distance lat = " << d.value() << " meters" << std::endl;
         // 3. x/y Distance (lat/lon scaled)
@@ -248,7 +250,8 @@ void ITSApplication::handle_receive_error(const std::error_code& error){
     
 }
 void ITSApplication::handle_message(std::size_t bytes_transferred){
-
+         auto position = positioning_.position_fix();
+      std::cout << "Test3 = " <<  position.latitude.value() << " meters" << std::endl;
     std::string data(this->recv_buffer.data(), bytes_transferred);  // Only use valid part of buffer
     std::cout << "[Received UDP data]: " << data << std::endl; 
     try {
