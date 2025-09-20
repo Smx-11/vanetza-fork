@@ -1,8 +1,10 @@
 #include "its_application.hpp"
 #include <vanetza/btp/ports.hpp>
+#include "BIT_STRING.h"
 #include <vanetza/asn1/cam.hpp>
 #include <vanetza/asn1/denm.hpp>
 #include <vanetza/asn1/cpm.hpp>
+#include <vanetza/asn1/spatem.hpp>
 #include <vanetza/asn1/packet_visitor.hpp>
 #include <vanetza/facilities/cam_functions.hpp>
 #include <boost/units/cmath.hpp>
@@ -16,12 +18,14 @@
 #include <boost/units/io.hpp>
 
 #include "nlohmann/json.hpp"
+
 // This is a very simple CA application sending CAMs at a fixed rate.
 
 using namespace vanetza;
 using namespace vanetza::facilities;
 using namespace std::chrono;
 namespace asio = boost::asio;
+
 
 ITSApplication::ITSApplication(PositionProvider& positioning, Runtime& rt, asio::io_service& io_service, unsigned short denm_port) :
     positioning_(positioning), runtime_(rt), cam_interval_(seconds(1)),
@@ -301,13 +305,9 @@ void ITSApplication::handle_receive_error(const std::error_code& error){
 void ITSApplication::handle_message(std::size_t bytes_transferred){
 
     std::string data(this->recv_buffer.data(), bytes_transferred);  // Only use valid part of buffer
-    //std::cout << "[Received UDP data]: " << data << std::endl; 
     try {
         // Parse JSON from received data
         nlohmann::json proto2json = nlohmann::json::parse(data);
-        
-        // print json
-        //std::cout << "[Parsed proto2 received]:\n" << proto2json.dump(4) << std::endl;
         if(!proto2json["objects"].empty()){    
             this->sendCPM(proto2json["objects"]);
         }
@@ -524,6 +524,22 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             std::cout << "Received DENM contains\n";
             print_indentedDENM(std::cout, *denm, "  ", 1);
         }
+		
+		switch (getMultihop()) 
+		{
+			case MultihopType::off:
+				// não fazer forwarding
+				std::cout << "Multihop Off - Not Forwarding\n";
+				break;
+			case MultihopType::flood:
+				// flooding
+				std::cout << "Multihop - Flooding\n";
+				break;
+			case MultihopType::prob:
+				// forwarding probabilístico
+				std::cout << "Multihop - Prob\n";
+				break;
+		}
     }    
     else if (cpm) {
         
@@ -544,7 +560,9 @@ void ITSApplication::schedule_timer()
 }
 
 void ITSApplication::on_timer(Clock::time_point)
-{
+{   
+    json j;
+    sendSpatem(j);
     schedule_timer();
     vanetza::asn1::Cam message;
 
@@ -736,11 +754,7 @@ void ITSApplication::sendDenm(const json& j){
     management.stationType = StationType_passengerCar;
 
     SituationContainer* situation = vanetza::asn1::allocate<SituationContainer_t>();
-   // situation->eventType.causeCode = 9;
-    
     const std::string eventTypeStr = proto2event.value("eventType", "unknown");
-
-    // NEW CODE TO ADD -CREATE ISSUE FOR DENM EVENT TYPE MATCHING AND USE THIS - works!
     int causeCode = 0;  // Default to "Unavailable"
     int subCauseCode = 0;  // Default to "Generic"
 
@@ -751,43 +765,74 @@ void ITSApplication::sendDenm(const json& j){
         causeCode = 9;  // Hazardous location - Surface condition
         // subCauseCode remains 0 (generic)
     }
+    // add other codes as needed
 
-    // Assign to situation
     situation->eventType.causeCode = causeCode;
-    situation->eventType.subCauseCode = subCauseCode;
+    situation->eventType.subCauseCode = 0;
     message->denm.situation = situation;
-     //print generated DENM
-    std::cout << "Generated DENM contains\n";
-    asn_fprint(stdout, &asn_DEF_DENM,message.operator->());
-        
+
+    //print generated DENM
+    if (print_tx_msg_) {
+        std::cout << "Generated DENM contains\n";
+        asn_fprint(stdout, &asn_DEF_DENM,message.operator->());
+    }
     std::string error;
 	if (!message.validate(error)) {
 		throw std::runtime_error("Invalid DENM: " + error);
 	}
     
-    // message is moved, so no need to worry about manual cleanups here
-    // After this point, the ownership of `message` data has transferred to `packet`,
-    // and it will be cleaned up automatically when `packet` is destroyed.
-    // No further manual freeing of `message` resources is necessary.
     DownPacketPtr packet { new DownPacket() };
     packet->layer(OsiLayer::Application) = std::move(message);
     DataRequest request;
     request.its_aid = aid::DEN;
-    request.transport_type = geonet::TransportType::SHB;
-    request.communication_profile = geonet::CommunicationProfile::ITS_G5;
+	
+	if (this->multihopType == MultihopType::geo) 
+	{
+		std::cout << "Sending DEMN using GeoBroadcasting" << std::endl;
+		// ... código específico para geo
+	}
+	else
+	{
+		std::cout << "Sending DEMN using Single Hop Broacasting" << std::endl;
+		request.transport_type = geonet::TransportType::SHB;
+	}
+	
+	request.communication_profile = geonet::CommunicationProfile::ITS_G5;
     auto confirm = Application::request(request, std::move(packet));
     if (!confirm.accepted()) {
         throw std::runtime_error("DENM application data request failed");
     }
 
-
+	
 }
 
+void ITSApplication::setMultihop(const std::string& type) 
+{
+	std::cout << "multihop type:" << type << std::endl;
+
+	if (type == "off") {
+		this->multihopType = MultihopType::off;
+	} else if (type == "geo") {
+		this->multihopType = MultihopType::geo;
+	} else if (type == "flood") {
+		this->multihopType = MultihopType::flood;
+	} else if (type == "prob") {
+		this->multihopType = MultihopType::prob;
+	} else {
+		std::cerr << "Invalid multihop mode - turning off " << type << std::endl;
+		this->multihopType = MultihopType::off;
+	}
+}
+
+MultihopType ITSApplication::getMultihop() 
+{
+	return multihopType;
+}
 void ITSApplication::sendCPM(const json& j){
     vanetza::asn1::Cpm cpmmessage;
     ItsPduHeader_t& header = cpmmessage->header;
     header.protocolVersion = 2;
-    header.messageID = 14; //header for cpm and to see on wireshark
+    header.messageID = 14; //header for cpm 
     header.stationID = this->station_id;
 
     CollectivePerceptionMessage_t& cpm = cpmmessage->cpm;
@@ -801,24 +846,19 @@ void ITSApplication::sendCPM(const json& j){
     CpmManagementContainer_t& management = cpmparams.managementContainer;
     management.stationType = StationType_passengerCar;
 
-    //station position
+    //get station position
     auto position = positioning_.position_fix();
-    //.value() returns in meters so i cast to microdeg as it is what is used in the messages
+    //convert .value() cast to microdegrees
     
     double latitude_deg = position.latitude.value();
     int32_t latitude_microdeg = static_cast<int32_t>(latitude_deg * 1e7);
-    //std::cout << "Latitude (microdegrees): " << latitude_microdeg << std::endl;
     
     double longitude_deg = position.longitude.value();
     int32_t longitude_microdeg = static_cast<int32_t>(longitude_deg * 1e7);
-    //std::cout << "Longitude (microdegrees): " << longitude_microdeg << std::endl;
-
+   
     //fill reference position with station position
     management.referencePosition.latitude = latitude_microdeg;
     management.referencePosition.longitude = longitude_microdeg;
-    //management.referencePosition.positionConfidenceEllipse.semiMajorOrientation=0;
-    //management.referencePosition.altitude.altitudeValue=0;
-
 
     //perceivedObjectContainer
     cpmparams.perceivedObjectContainer=vanetza::asn1::allocate<PerceivedObjectContainer_t>();
@@ -832,22 +872,27 @@ void ITSApplication::sendCPM(const json& j){
     ReferencePosition_t& Station_longitude = *vanetza::asn1::allocate<ReferencePosition_t>();
     Station_longitude.latitude = 0;   
     Station_longitude.longitude = longitude_microdeg; 
-    int objectID = 0;
+
     for (const auto& obj : j) {
 
         //  PerceivedObject_t* asn_obj = (PerceivedObject_t*)calloc(1, sizeof(PerceivedObject_t));
         auto asn_obj = vanetza::asn1::allocate<PerceivedObject_t>();
         
-        // 1. objectID (convert "obj-001" → 1)
-        
-        asn_obj->objectID = objectID;
-        objectID++;
+        // 1. objectID
+        std::string id_str = obj["objectID"];
+        try {
+            // Try converting to int
+            int id_int = std::stoi(id_str);
+            asn_obj->objectID = id_int;
+        } catch (const std::invalid_argument& e) {
 
+            std::cerr << "Invalid objectID: not a number -> " << id_str << std::endl;
+            asn_obj->objectID = 255;
+        }
+    
         //TimeOfMeasurement 1 -> 1ms
-        
         asn_obj->timeOfMeasurement =0; 
        
-
         //yDistance 1 -> 0.01m
         //object latitude position to calculte yDistance
         ReferencePosition_t& Object_latitude = *vanetza::asn1::allocate<ReferencePosition_t>();
@@ -855,10 +900,11 @@ void ITSApplication::sendCPM(const json& j){
         Object_latitude.longitude = 0;  
         //calculate latitude diference in meters
         units::Length d = distance(Station_latitude,Object_latitude);
-        // std::cout << "yDistance = " << d.value() << " meters" << std::endl;
-        if(d.value() > 132.767 ){
+        
+        //verify distance if exceeds limits set as max values
+        if(d.value() > 1327.67 ){    
             asn_obj->yDistance.value = 132767;
-        }else if ( d.value() < -132678){
+        }else if ( d.value() < -1327.68){     
             asn_obj->yDistance.value = -132768;
         }else{
             asn_obj->yDistance.value = d.value()*100;
@@ -873,10 +919,10 @@ void ITSApplication::sendCPM(const json& j){
         Object_longitude.longitude = obj.value("lon", 0);  
         //calculate longitude diference in meters
         units::Length dlon = distance(Station_longitude, Object_longitude);
-        std::cout << "Distance long= " << dlon.value() << " meters" << std::endl;
-          if(dlon.value() > 132.767 ){
+        //verify distance if exceeds limits set as max values
+        if(dlon.value() > 1327.67 ){
             asn_obj->xDistance.value = 132767;
-        }else if ( dlon.value() < -132.678){
+        }else if ( dlon.value() < -1327.68){
             asn_obj->xDistance.value = -132768;
         }else{
             asn_obj->xDistance.value = dlon.value()*100;
@@ -891,7 +937,7 @@ void ITSApplication::sendCPM(const json& j){
             asn_obj->zDistance->confidence = obj.value("altitudeConfidence", 0);
         }
 
-        // xSpeed - 1 -> 1 cm/s , m/s = cm/s*100
+        // xSpeed - 1 -> 1 cm/s 
         asn_obj->xSpeed.value = obj.value("speed", 0);
         asn_obj->xSpeed.confidence = obj.value("speedConfidence", 0);
 
@@ -903,21 +949,21 @@ void ITSApplication::sendCPM(const json& j){
         // xAccelerarion 1 -> 0.1m/s^2 
         if (obj.contains("longAcc")) {
             asn_obj->xAcceleration = vanetza::asn1::allocate<LongitudinalAcceleration_t>();
-            asn_obj->xAcceleration->longitudinalAccelerationValue = obj.value("longAcc", 0.0);  // m/s² → scaled
+            asn_obj->xAcceleration->longitudinalAccelerationValue = obj.value("longAcc", 0.0);  
             asn_obj->xAcceleration->longitudinalAccelerationConfidence = obj.value("longAccConfidence", 0);
         }
 
         // yawAngle 1 -> 0.1º
         if (obj.contains("heading")) {
             asn_obj->yawAngle = vanetza::asn1::allocate<CartesianAngle_t>();
-            asn_obj->yawAngle->value =  obj.value("heading", 3601);  // degrees → 0.01 deg
+            asn_obj->yawAngle->value =  obj.value("heading", 3601);  
             asn_obj->yawAngle->confidence = obj.value("headingConfidence", 0);
         }
 
         // Length 1 -> 0.1m
         if (obj.contains("length")) {  
             asn_obj->planarObjectDimension1 = vanetza::asn1::allocate<ObjectDimension_t>();
-            asn_obj->planarObjectDimension1->value =obj.value("length", 0.0); // meters → cm
+            asn_obj->planarObjectDimension1->value =obj.value("length", 0.0); 
             asn_obj->planarObjectDimension1->confidence = obj.value("lengthConfidence", 0);
         }
         
@@ -942,18 +988,16 @@ void ITSApplication::sendCPM(const json& j){
     //number of perceivedobjects value
     cpmparams.numberOfPerceivedObjects = cpmparams.perceivedObjectContainer->list.count;
 
-
-    std::cout << "Generated Full CPM contains:\n";
-    asn_fprint(stdout, &asn_DEF_CPM, cpmmessage.operator->());
-
+    if (print_tx_msg_) {
+        std::cout << "Generated Full CPM contains:\n";
+        asn_fprint(stdout, &asn_DEF_CPM, cpmmessage.operator->());
+    }
     DownPacketPtr packet { new DownPacket() };
     packet->layer(OsiLayer::Application) = std::move(cpmmessage);
     DataRequest request;
     request.its_aid = aid::CP;
     request.transport_type = geonet::TransportType::SHB;
     request.communication_profile = geonet::CommunicationProfile::ITS_G5;
- 
-    //print_indented_denm(std::cout, message, "  ", 1);
     
     try {
     auto confirm = Application::request(request, std::move(packet));
@@ -965,4 +1009,53 @@ void ITSApplication::sendCPM(const json& j){
         
         
     }
+}
+
+void ITSApplication::sendSpatem(const json& j){
+     vanetza::asn1::Spatem message;
+
+    // Header	
+    ItsPduHeader_t& header = message->header;
+	header.protocolVersion = 4;
+    header.messageID = ItsPduHeader__messageID_spatem;
+    header.stationID = this->station_id;
+
+
+    SPAT_t& spatem = message->spat;
+    spatem.intersections= *vanetza::asn1::allocate<IntersectionStateList_t>();
+    auto intersectionState = vanetza::asn1::allocate<IntersectionState_t>();
+    intersectionState->id.id=1;
+    intersectionState->revision=10;
+
+    //-----GPT------
+    // Allocate buffer
+    intersectionState->status.buf = (uint8_t*)calloc(2, 1);
+    intersectionState->status.size = 2;
+    intersectionState->status.bits_unused = 0;
+
+    // Enable "trafficDependentOperation"
+    intersectionState->status.buf[0] |= (1 << (7 - (IntersectionStatusObject_trafficDependentOperation % 8)));
+    //-----GPT------
+   
+    intersectionState->states = *vanetza::asn1::allocate<MovementList_t>();
+    //example with 3 tl in an intersetion
+    for(int i=0;i<3;i++){
+MovementState_t *state = vanetza::asn1::allocate<MovementState_t>();
+    state->signalGroup = i; //TL identifier on the intersection
+    state->state_time_speed = *vanetza::asn1::allocate<MovementEventList_t>();
+
+    MovementEvent_t *event = vanetza::asn1::allocate<MovementEvent_t>();
+    event->eventState = 3; //stop and remain (red case?)
+    
+    
+   
+    ASN_SEQUENCE_ADD(&state->state_time_speed.list, event);    
+     ASN_SEQUENCE_ADD(&intersectionState->states.list, state);  
+    }
+               
+              
+    ASN_SEQUENCE_ADD(&spatem.intersections.list, intersectionState);  
+
+    // Print
+    asn_fprint(stdout, &asn_DEF_SPATEM, message.operator->());
 }
