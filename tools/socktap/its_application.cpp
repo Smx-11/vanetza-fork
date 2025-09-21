@@ -1045,8 +1045,9 @@ MovementState_t *state = vanetza::asn1::allocate<MovementState_t>();
     state->state_time_speed = *vanetza::asn1::allocate<MovementEventList_t>();
 
     MovementEvent_t *event = vanetza::asn1::allocate<MovementEvent_t>();
-    event->eventState = 3; //stop and remain (red case?)
-    
+    event->eventState = 3; //stop and remain (MovementPhaseState_stop_And_Remain)
+    //event->eventState = 5; // green (MovementPhaseState_permissive_Movement_Allowed )
+    //event->eventState = 7; //yellow (MovementPhaseState_permissive_clearance)
     
    
     ASN_SEQUENCE_ADD(&state->state_time_speed.list, event);    
