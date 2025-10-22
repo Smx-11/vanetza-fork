@@ -40,6 +40,71 @@ ITSApplication::ITSApplication(PositionProvider& positioning, Runtime& rt, asio:
 	
 }
 
+void print_indentedSpatem(std::ostream& os, const vanetza::asn1::Spatem& message, const std::string& indent, unsigned level) {
+    auto prefix = [&](const char* field) -> std::ostream& {
+        for (unsigned i = 0; i < level; ++i) {
+            os << indent;
+        }
+        os << field << ": ";
+        return os;
+    };
+
+    // Print ITS PDU Header
+    const ItsPduHeader_t& header = message->header;
+    prefix("ITS PDU Header") << "\n";
+    ++level;
+    prefix("Protocol Version") << static_cast<int>(header.protocolVersion) << "\n";
+    prefix("Message ID") << static_cast<int>(header.messageID) << "\n";
+    prefix("Station ID") << header.stationID << "\n";
+    --level;
+
+    // SPATEM content
+    const SPAT_t& spatem = message->spat;
+
+    prefix("Intersections") << "\n";
+    ++level;
+    for (int i = 0; i < spatem.intersections.list.count; ++i) {
+        const IntersectionState_t* intersection = spatem.intersections.list.array[i];
+        prefix("Intersection") << i << "\n";
+        ++level;
+        prefix("ID") << intersection->id.id << "\n";
+        prefix("Revision") << intersection->revision << "\n";
+
+        // Status bits
+        prefix("Status") << "\n";
+        ++level;
+        for (size_t b = 0; b < intersection->status.size; ++b) {
+            prefix(("Byte " + std::to_string(b)).c_str()) << std::bitset<8>(intersection->status.buf[b]) << "\n";
+        }
+        --level;
+
+        // Movements
+        prefix("Movements") << "\n";
+        ++level;
+        for (int j = 0; j < intersection->states.list.count; ++j) {
+            const MovementState_t* movement = intersection->states.list.array[j];
+            prefix("MovementState") << j << "\n";
+            ++level;
+            prefix("Signal Group") << movement->signalGroup << "\n";
+
+            // Movement events
+            prefix("State Time Speed") << "\n";
+            ++level;
+            for (int k = 0; k < movement->state_time_speed.list.count; ++k) {
+                const MovementEvent_t* event = movement->state_time_speed.list.array[k];
+                ++level;
+                prefix("Event State") << static_cast<int>(event->eventState) << "\n";
+                --level;
+            }
+            --level; // end Movement Events
+            --level; // end Movement
+        }
+        --level; // end Movements
+        --level; // end Intersection
+    }
+    --level; // end Intersections
+}
+
 void print_indentedCPM(std::ostream& os, const asn1::Cpm& message, const std::string& indent, unsigned level)
 {
     auto prefix = [&](const char* field) -> std::ostream& {
@@ -229,7 +294,10 @@ void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::
     ++level;
     prefix("Latitude") << mgmt.eventPosition.latitude << "\n";
     prefix("Longitude") << mgmt.eventPosition.longitude << "\n";
-
+    if (mgmt.termination) {
+    long value = *mgmt.termination;
+    prefix("Termination") << value << "\n";
+    }
     // Position Confidence Ellipse
     prefix("Position Confidence Ellipse") << "\n";
     ++level;
@@ -308,8 +376,12 @@ void ITSApplication::handle_message(std::size_t bytes_transferred){
     try {
         // Parse JSON from received data
         nlohmann::json proto2json = nlohmann::json::parse(data);
+    
         if(!proto2json["objects"].empty()){    
             this->sendCPM(proto2json["objects"]);
+        }
+        if(!proto2json["trafficLights"].empty()){
+            this->sendSpatem(proto2json["trafficLights"]);
         }
         if (!proto2json["events"].empty()) {
             const auto& events = proto2json["events"];
@@ -462,7 +534,66 @@ int decode(const asn1::Cam& recvd, char* message){
     return strlen(message);
 }
 
+int decodeSpatem(const vanetza::asn1::Spatem& message, char* jsonMessage, size_t bufferSize) {
+    const ItsPduHeader_t& header = message->header;
+    const SPAT_t& spatem = message->spat;
 
+    int offset = 0;
+
+    offset += snprintf(jsonMessage + offset, bufferSize - offset,
+        "{ \"ITSHeader\": { \"protocolVersion\": %d, \"messageID\": %d, \"stationID\": %ld }, \"intersections\": [",
+        static_cast<int>(header.protocolVersion),
+        static_cast<int>(header.messageID),
+        header.stationID
+    );
+
+    for (int i = 0; i < spatem.intersections.list.count; ++i) {
+        const IntersectionState_t* intersection = spatem.intersections.list.array[i];
+
+        offset += snprintf(jsonMessage + offset, bufferSize - offset,
+            "%s{ \"id\": %d, \"revision\": %d, \"status\": [",
+            (i > 0 ? "," : ""),
+            intersection->id.id,
+            intersection->revision
+        );
+
+        // Status bytes
+        for (size_t b = 0; b < intersection->status.size; ++b) {
+            offset += snprintf(jsonMessage + offset, bufferSize - offset,
+                "%s%u",
+                (b > 0 ? "," : ""),
+                static_cast<unsigned>(intersection->status.buf[b])
+            );
+        }
+        offset += snprintf(jsonMessage + offset, bufferSize - offset, "], \"movements\": [");
+
+        // Movements
+        for (int j = 0; j < intersection->states.list.count; ++j) {
+            const MovementState_t* movement = intersection->states.list.array[j];
+
+            offset += snprintf(jsonMessage + offset, bufferSize - offset,
+                "%s{ \"signalGroup\": %d, \"stateTimeSpeed\": [",
+                (j > 0 ? "," : ""),
+                movement->signalGroup
+            );
+
+            for (int k = 0; k < movement->state_time_speed.list.count; ++k) {
+                const MovementEvent_t* event = movement->state_time_speed.list.array[k];
+                offset += snprintf(jsonMessage + offset, bufferSize - offset,
+                    "%s%d",
+                    (k > 0 ? "," : ""),
+                    static_cast<int>(event->eventState)
+                );
+            }
+            offset += snprintf(jsonMessage + offset, bufferSize - offset, "]}");
+        }
+        offset += snprintf(jsonMessage + offset, bufferSize - offset, "]}");
+    }
+
+    offset += snprintf(jsonMessage + offset, bufferSize - offset, "]}\n");
+
+    return offset; // returns the number of characters written
+}
 
 void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr packet)
 {
@@ -479,6 +610,10 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
     // Try decode as CPM
     asn1::PacketVisitor<asn1::Cpm> cpmVisitor;
     std::shared_ptr<const asn1::Cpm> cpm = boost::apply_visitor(cpmVisitor, *packet);
+
+    //Try decode as SPATEM
+    asn1::PacketVisitor<asn1::Spatem> spatemVisitor;
+    std::shared_ptr<const asn1::Spatem> spatem = boost::apply_visitor(spatemVisitor, *packet);
 
     packet.get();
 
@@ -549,6 +684,64 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             print_indentedCPM(std::cout, *cpm, "  ", 1);
         }
     }
+    else if(spatem){
+        std::cout << "Received SPATEM with decodable content" << std::endl;
+        if (print_rx_msg_) {
+            std::cout << "Received SPATEM contains\n";
+             print_indentedSpatem(std::cout, *spatem, "  ", 1);
+        }
+        if(send_to_server){
+            char message[2000]; // Make sure buffer is large enough
+    int size = decodeSpatem(*spatem, message, sizeof(message)); 
+    nlohmann::json original = nlohmann::json::parse(message);  // single SPATEM object
+
+    // Build outgoing JSON
+    nlohmann::json outgoing;
+
+    // Add version and timestamp
+    const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
+    uint16_t gen_delta_time = static_cast<uint16_t>(time_now.count());
+    outgoing["version"] = 1.0;
+    outgoing["timestamp"] = gen_delta_time * GenerationDeltaTime_oneMilliSec;
+
+    // Wrap SPATEM object into an array
+    outgoing["objects"] = nlohmann::json::array();
+
+    // Empty events array
+    outgoing["events"] = nlohmann::json::array();
+
+    // Add trafficLights manually
+    outgoing["trafficLights"] = nlohmann::json::array();
+
+    // Example: populate trafficLights from SPATEM intersections
+    for (const auto& intersection : original["intersections"]) {
+        nlohmann::json trafficLightEntry;
+        trafficLightEntry["intersectionId"] = intersection["id"];
+        trafficLightEntry["states"] = nlohmann::json::array();
+
+        // Example: map movement signal groups to states
+        for (const auto& movement : intersection["movements"]) {
+            nlohmann::json state;
+            state["signalGroup"] = movement["signalGroup"];
+            // Here, map event state to some numeric state (example: take first event)
+            if (!movement["stateTimeSpeed"].empty()) {
+                state["state"] = movement["stateTimeSpeed"][0];
+            } else {
+                state["state"] = 0; // default if no event
+            }
+            trafficLightEntry["states"].push_back(state);
+        }
+
+        outgoing["trafficLights"].push_back(trafficLightEntry);
+    }
+    
+    std::string jsonStr = outgoing.dump();
+    this->sendCAMToServer(jsonStr, jsonStr.size());
+
+}
+        
+        
+    }
     else {
         std::cout << "Received packet with broken or unknown content" << std::endl;
     }
@@ -561,8 +754,7 @@ void ITSApplication::schedule_timer()
 
 void ITSApplication::on_timer(Clock::time_point)
 {   
-    json j;
-    sendSpatem(j);
+   
     schedule_timer();
     vanetza::asn1::Cam message;
 
@@ -673,30 +865,6 @@ void ITSApplication::sendDenm(const json& j){
 
         //detection time
     const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());
-
-    //uint64_t time = 45000000000;
-   /* uint64_t time = time_now.count();
-    uint64_t time = 45000000000;
-
-	// XXX: possible memory leak, free allocated memory
-    management.detectionTime.buf = (uint8_t*) malloc(sizeof(uint64_t));
-    management.detectionTime.size = sizeof(uint64_t);
-    
-    for (size_t i = 0; i < management.detectionTime.size; ++i) {
-        management.detectionTime.buf[i] = (time >> (8 * (management.detectionTime.size - 1 - i))) & 0xFF;
-    }
-
-    //reference time
-   // uint64_t ref_time = 45000000000;
-    uint64_t ref_time = time_now.count();
-    management.referenceTime.buf = (uint8_t*) malloc(sizeof(uint64_t));
-    management.referenceTime.size = sizeof(uint64_t);
-
-    for (size_t i = 0; i < management.referenceTime.size; ++i) {
-        management.referenceTime.buf[i] = (ref_time >> (8 * (management.referenceTime.size - 1 - i))) & 0xFF;
-    }*/
-
-    //detectionTime and referenceTime are set using asn_long2INTEGER() — no manual malloc/free, so no leaks there.
     INTEGER_t* detectionTime = &management.detectionTime;
     long timeValue = time_now.count();
     int ret = asn_long2INTEGER(detectionTime, timeValue);
@@ -750,7 +918,7 @@ void ITSApplication::sendDenm(const json& j){
     } else {
         *management.relevanceDistance = RelevanceDistance_over10km;
     }
-    
+   
     management.stationType = StationType_passengerCar;
 
     SituationContainer* situation = vanetza::asn1::allocate<SituationContainer_t>();
@@ -764,11 +932,20 @@ void ITSApplication::sendDenm(const json& j){
     } else if (eventTypeStr == "Entity outside safe zone") {
         causeCode = 9;  // Hazardous location - Surface condition
         // subCauseCode remains 0 (generic)
+    } else if(eventTypeStr == "collisionRisk"){
+        causeCode = 97; // Collision risk 
+        subCauseCode = 4; // Collision risk involving vulnerable road user 
+    }else if(eventTypeStr == "None"){ //termination code
+        causeCode = 0;
+        subCauseCode = 0;
+        management.termination = (Termination_t*) calloc(1, sizeof(Termination_t));
+        *management.termination = Termination_isCancellation;
+
     }
     // add other codes as needed
 
     situation->eventType.causeCode = causeCode;
-    situation->eventType.subCauseCode = 0;
+    situation->eventType.subCauseCode = subCauseCode;
     message->denm.situation = situation;
 
     //print generated DENM
@@ -798,9 +975,14 @@ void ITSApplication::sendDenm(const json& j){
 	}
 	
 	request.communication_profile = geonet::CommunicationProfile::ITS_G5;
+    try {
     auto confirm = Application::request(request, std::move(packet));
     if (!confirm.accepted()) {
         throw std::runtime_error("DENM application data request failed");
+    }
+    } catch(std::runtime_error& e) {
+        std::cout << "-- Vanetza UPER Encoding Error --\nCheck that the message format follows ETSI spec\n" << e.what() << std::endl;
+
     }
 
 	
@@ -937,9 +1119,22 @@ void ITSApplication::sendCPM(const json& j){
             asn_obj->zDistance->confidence = obj.value("altitudeConfidence", 0);
         }
 
+        
         // xSpeed - 1 -> 1 cm/s 
-        asn_obj->xSpeed.value = obj.value("speed", 0);
-        asn_obj->xSpeed.confidence = obj.value("speedConfidence", 0);
+            int speed = obj.value("speed", 0);
+
+        // Read originID once
+        std::string originID = obj.value("originID", "");
+
+        // Adjust speed if originID is "camera1"
+        if (originID == "camera1") {
+            speed /= 100;  // divide by 100 if it's too large
+        }
+        asn_obj->xSpeed.value = speed;
+        
+        int speedConf = obj.value("speedConfidence", 1);
+        asn_obj->xSpeed.confidence = (speedConf == 0 ? 1 : speedConf);
+
 
         //ySpeed - 0
         asn_obj->ySpeed.value = 0;
@@ -956,8 +1151,18 @@ void ITSApplication::sendCPM(const json& j){
         // yawAngle 1 -> 0.1º
         if (obj.contains("heading")) {
             asn_obj->yawAngle = vanetza::asn1::allocate<CartesianAngle_t>();
-            asn_obj->yawAngle->value =  obj.value("heading", 3601);  
-            asn_obj->yawAngle->confidence = obj.value("headingConfidence", 0);
+            int heading = obj.value("heading", 3600);
+
+            // Adjust heading if originID is "camera1"
+            if (originID == "camera1") {
+                heading /= 100;  // divide by 1000 if it's too large
+            }
+
+            // Assign to ASN object
+            asn_obj->yawAngle->value = heading;
+            int headingConf = obj.value("headingConfidence", 1);
+             asn_obj->yawAngle->confidence  = (headingConf == 0 ? 1 : headingConf);
+           
         }
 
         // Length 1 -> 0.1m
@@ -1005,58 +1210,67 @@ void ITSApplication::sendCPM(const json& j){
         throw std::runtime_error("CPM application data request failed");
     }
     } catch(std::runtime_error& e) {
-        std::cout << "-- Vanetza UPER Encoding Error --\nCheck that the message format follows ETSI spec\n" << e.what() << std::endl;
-        
-        
+        std::cout << "-- Vanetza UPER Encoding Error --\nCheck that the message format follows ETSI spec\n" << e.what() << std::endl;        
     }
 }
 
 void ITSApplication::sendSpatem(const json& j){
-     vanetza::asn1::Spatem message;
-
+    vanetza::asn1::Spatem message;
     // Header	
     ItsPduHeader_t& header = message->header;
 	header.protocolVersion = 4;
     header.messageID = ItsPduHeader__messageID_spatem;
     header.stationID = this->station_id;
 
-
     SPAT_t& spatem = message->spat;
-    spatem.intersections= *vanetza::asn1::allocate<IntersectionStateList_t>();
-    auto intersectionState = vanetza::asn1::allocate<IntersectionState_t>();
-    intersectionState->id.id=1;
-    intersectionState->revision=10;
+    for (const auto& intersectionObj : j) {
 
-    //-----GPT------
-    // Allocate buffer
-    intersectionState->status.buf = (uint8_t*)calloc(2, 1);
-    intersectionState->status.size = 2;
-    intersectionState->status.bits_unused = 0;
+        spatem.intersections= *vanetza::asn1::allocate<IntersectionStateList_t>();
+        auto intersectionState = vanetza::asn1::allocate<IntersectionState_t>();
+        intersectionState->id.id=intersectionObj.value("intersectionId",0);
+        intersectionState->revision=10; //random number for now
 
-    // Enable "trafficDependentOperation"
-    intersectionState->status.buf[0] |= (1 << (7 - (IntersectionStatusObject_trafficDependentOperation % 8)));
-    //-----GPT------
-   
-    intersectionState->states = *vanetza::asn1::allocate<MovementList_t>();
-    //example with 3 tl in an intersetion
-    for(int i=0;i<3;i++){
-MovementState_t *state = vanetza::asn1::allocate<MovementState_t>();
-    state->signalGroup = i; //TL identifier on the intersection
-    state->state_time_speed = *vanetza::asn1::allocate<MovementEventList_t>();
+        intersectionState->status.buf = (uint8_t*)calloc(2, 1);
+        intersectionState->status.size = 2;
+        intersectionState->status.bits_unused = 0;
+        intersectionState->status.buf[0] |= (1 << (7 - (IntersectionStatusObject_trafficDependentOperation % 8)));
+        
+        intersectionState->states = *vanetza::asn1::allocate<MovementList_t>();
+        for (const auto& stateObj : intersectionObj["states"]) {
+            
+            MovementState_t *state = vanetza::asn1::allocate<MovementState_t>();
+            state->signalGroup = stateObj.value("signalGroup",0); //TL identifier on the intersection
+            state->state_time_speed = *vanetza::asn1::allocate<MovementEventList_t>();
 
-    MovementEvent_t *event = vanetza::asn1::allocate<MovementEvent_t>();
-    event->eventState = 3; //stop and remain (MovementPhaseState_stop_And_Remain)
-    //event->eventState = 5; // green (MovementPhaseState_permissive_Movement_Allowed )
-    //event->eventState = 7; //yellow (MovementPhaseState_permissive_clearance)
-    
-   
-    ASN_SEQUENCE_ADD(&state->state_time_speed.list, event);    
-     ASN_SEQUENCE_ADD(&intersectionState->states.list, state);  
+            MovementEvent_t *event = vanetza::asn1::allocate<MovementEvent_t>();
+            event->eventState = stateObj.value("state",0); 
+
+            ASN_SEQUENCE_ADD(&state->state_time_speed.list, event);    
+            ASN_SEQUENCE_ADD(&intersectionState->states.list, state);  
+
+        }       
+        ASN_SEQUENCE_ADD(&spatem.intersections.list, intersectionState);  
     }
-               
-              
-    ASN_SEQUENCE_ADD(&spatem.intersections.list, intersectionState);  
+    
+    if (print_tx_msg_) {
+        std::cout << "Generated Full SPATEM contains:\n";
+        asn_fprint(stdout, &asn_DEF_SPATEM, message.operator->());
+    }
+   
+    DownPacketPtr packet { new DownPacket() };
+    packet->layer(OsiLayer::Application) = std::move(message);
+    DataRequest request;
+    request.its_aid = aid::SA;
+    request.transport_type = geonet::TransportType::SHB;
+    request.communication_profile = geonet::CommunicationProfile::ITS_G5;
+    
+    try {
+    auto confirm = Application::request(request, std::move(packet));
+    if (!confirm.accepted()) {
+        throw std::runtime_error("Spatem application data request failed");
+    }
+    } catch(std::runtime_error& e) {
+        std::cout << "-- Vanetza UPER Encoding Error --\nCheck that the message format follows ETSI spec\n" << e.what() << std::endl;
 
-    // Print
-    asn_fprint(stdout, &asn_DEF_SPATEM, message.operator->());
+    }
 }
