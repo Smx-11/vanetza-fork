@@ -858,8 +858,13 @@ void ITSApplication::sendDenm(const json& j){
     // Management
     ManagementContainer_t& management = message->denm.management;
     //action id
-    //management.actionID.originatingStationID = 1;
-    management.actionID.originatingStationID = atoi(proto2event.value("origin", "1").c_str());
+    management.actionID.originatingStationID = 1;
+    /*std::string origin = proto2event.value("origin", "1");
+
+    if (origin == "ITS-PLAT") {
+    management.actionID.originatingStationID = 255;}
+    else{
+    management.actionID.originatingStationID = atoi(proto2event.value("origin", "1").c_str());}*/
     management.actionID.sequenceNumber = counter;
 
 
@@ -926,7 +931,7 @@ void ITSApplication::sendDenm(const json& j){
     int causeCode = 0;  // Default to "Unavailable"
     int subCauseCode = 0;  // Default to "Generic"
 
-    if (eventTypeStr == "speeding" || eventTypeStr == "Jerk Detected") {
+    if (eventTypeStr == "speeding" || eventTypeStr == "Jerk Detected" || eventTypeStr == "SPEED_INFRACTION") {
         causeCode = 99;  // Dangerous situation
         // subCauseCode remains 0 (generic)
     } else if (eventTypeStr == "Entity outside safe zone") {
@@ -935,7 +940,7 @@ void ITSApplication::sendDenm(const json& j){
     } else if(eventTypeStr == "collisionRisk"){
         causeCode = 97; // Collision risk 
         subCauseCode = 4; // Collision risk involving vulnerable road user 
-    }else if(eventTypeStr == "None"){ //termination code
+    }else if(eventTypeStr == "None" ||eventTypeStr == "UNKNOWN"  ){ //termination code
         causeCode = 0;
         subCauseCode = 0;
         management.termination = (Termination_t*) calloc(1, sizeof(Termination_t));
