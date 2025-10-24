@@ -136,6 +136,7 @@ void CamApplication::indicate(const DataIndication& indication, UpPacketPtr pack
     std::cout << "CAM application received a packet with " << (cam ? "decodable" : "broken") << " content" << std::endl;
     if (cam && print_rx_msg_) {
         std::cout << "Received CAM contains\n";
+        
         print_indented(std::cout, *cam, "  ", 1);
     }
     
