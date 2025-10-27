@@ -38,8 +38,13 @@ int main(int argc, const char** argv)
         ("print-tx-cam", "Print generated CAMs")
         ("print-rx-denm", "Print received DENMs")
         ("print-tx-denm", "Print generated DENMs")
+        ("print-rx-cpm", "Print received CPMs")
+        ("print-tx-cpm", "Print generated CPMs")
+        ("print-rx-spatem", "Print received SPATEMs")
+        ("print-tx-spatem", "Print generated SPATEMs")
         ("benchmark", "Enable benchmarking")
         ("send-to-server", "Send V2X data to server")
+        ("send-to-logFile", "Store V2X received/tranmissions in file")
         ("send-to-file", "Store V2X data in a file")
         ("file",po::value<std::string>()->default_value("v2x_data.bin"), "File")
         ("server-ip",po::value<std::string>()->default_value("192.168.1.124"), "Server IP")
@@ -47,6 +52,7 @@ int main(int argc, const char** argv)
         ("station-id", po::value<unsigned>()->default_value(1), "Station ID")
         ("applications,a", po::value<std::vector<std::string>>()->default_value({"ca"}, "ca")->multitoken(), "Run applications [ca,its,hello,benchmark]")
         ("non-strict", "Set MIB parameter ItsGnSnDecapResultHandling to NON_STRICT")
+		("multihop", po::value<std::string>()->default_value("off"), "Multihop mode: off, geo, flood, prob");
     ;
     add_positioning_options(options);
     add_security_options(options);
@@ -175,25 +181,37 @@ int main(int argc, const char** argv)
             } 
             else if (app_name == "its") {
                 
-               std::unique_ptr<ITSApplication> ca {
+               std::unique_ptr<ITSApplication> its {
                     new ITSApplication(*positioning, trigger.runtime(), io_service, 9001)
                 };
-                ca->set_interval(std::chrono::milliseconds(vm["cam-interval"].as<unsigned>()));
-                ca->print_received_message(vm.count("print-rx-cam") > 0);
-                ca->print_generated_message(vm.count("print-tx-cam") > 0);
-                ca->setStationID(vm["station-id"].as<unsigned>());
+                its->set_interval(std::chrono::milliseconds(vm["cam-interval"].as<unsigned>()));
+                its->print_received_message(vm.count("print-rx-cam") > 0);
+                its->print_generated_message(vm.count("print-tx-cam") > 0);
+                its->print_received_DENM(vm.count("print-rx-denm") > 0);
+                its->print_generated_DENM(vm.count("print-tx-denm") > 0);
+                its->print_received_CPM(vm.count("print-rx-cpm") > 0);
+                its->print_generated_CPM(vm.count("print-tx-cpm") > 0);
+                its->print_received_SPATEM(vm.count("print-rx-spatem") > 0);
+                its->print_generated_SPATEM(vm.count("print-tx-spatem") > 0);
+				if(vm.count("send-to-logFile") > 0){
+                   
+                    its->setSendTologFile(true);
+                }
+				its->setMultihop(vm["multihop"].as<std::string>());
+				
+                its->setStationID(vm["station-id"].as<unsigned>());
                 if(vm.count("send-to-server") > 0){
-                    ca->setServerIP(vm["server-ip"].as<std::string>().data());
-                    ca->setServerPort(vm["server-port"].as<unsigned>());
+                    its->setServerIP(vm["server-ip"].as<std::string>().data());
+                    its->setServerPort(vm["server-port"].as<unsigned>());
                     
-                    ca->createSocket();
-                    ca->setSendToServer(true);
+                    its->createSocket();
+                    its->setSendToServer(true);
                 }
                 if(vm.count("send-to-file") > 0){
                     context.setSendToFile(true);
                     context.setFile(vm["file"].as<std::string>().data());
                 }
-                apps.emplace(app_name, std::move(ca));
+                apps.emplace(app_name, std::move(its));
             } else if (app_name == "hello") {
                 std::unique_ptr<HelloApplication> hello {
                     new HelloApplication(io_service, std::chrono::milliseconds(800))

@@ -113,174 +113,172 @@ void print_indentedSpatem(std::ostream& os, const vanetza::asn1::Spatem& message
     --level; // end Intersections
 }
 
-void print_indentedCPM(std::ostream& os, const asn1::Cpm& message, const std::string& indent, unsigned level)
-{
+void print_indentedCPM(std::ostream& os, const asn1::Cpm& message, const std::string& indent, unsigned level){
     auto prefix = [&](const char* field) -> std::ostream& {
-        for (unsigned i = 0; i < level; ++i) {
+            for (unsigned i = 0; i < level; ++i) {
             os << indent;
-        }
-        os << field << ": ";
-        return os;
+            }
+            os << field << ": ";
+            return os;
     };
 
-    // ITS PDU Header
-    const ItsPduHeader_t& header = message->header;
-    prefix("ITS PDU Header") << "\n";
-    ++level;
-    prefix("Protocol Version") << static_cast<int>(header.protocolVersion) << "\n";
-    prefix("Message ID") << static_cast<int>(header.messageID) << "\n";
-    prefix("Station ID") << header.stationID << "\n";
-    --level;
-
-    // CPM content
-    const CollectivePerceptionMessage_t& cpm = message->cpm;
-    prefix("CPM") << "\n";
-    ++level;
-
-    prefix("Generation Delta Time") << cpm.generationDeltaTime << "\n";
-
-    // CPM Parameters
-    prefix("CPM Parameters") << "\n";
-    ++level;
-
-    // Management Container
-    prefix("Management Container") << "\n";
-    ++level;
-    const CpmManagementContainer_t& mgmt = cpm.cpmParameters.managementContainer;
-
-    prefix("Station Type") << static_cast<int>(mgmt.stationType) << "\n";
-
-    prefix("Reference Position") << "\n";
-    ++level;
-    prefix("Latitude") << mgmt.referencePosition.latitude << "\n";
-    prefix("Longitude") << mgmt.referencePosition.longitude << "\n";
-
-    prefix("Position Confidence Ellipse") << "\n";
-    ++level;
-    prefix("Semi Major Confidence") << mgmt.referencePosition.positionConfidenceEllipse.semiMajorConfidence << "\n";
-    prefix("Semi Minor Confidence") << mgmt.referencePosition.positionConfidenceEllipse.semiMinorConfidence << "\n";
-    prefix("Semi Major Orientation") << mgmt.referencePosition.positionConfidenceEllipse.semiMajorOrientation << "\n";
-    --level;
-
-    prefix("Altitude") << "\n";
-    ++level;
-    prefix("Altitude Value") << mgmt.referencePosition.altitude.altitudeValue << "\n";
-    prefix("Altitude Confidence") << static_cast<int>(mgmt.referencePosition.altitude.altitudeConfidence) << "\n";
-    --level; // end altitude
-    --level; // end reference position
-    --level; // end management container
-
-    // Perceived Object Container
-   prefix("Perceived Object Container") << "\n";
-    ++level;
-
-    // Iterate over perceived objects (if there are multiple)
-const PerceivedObjectContainer_t& perceived_objects = *cpm.cpmParameters.perceivedObjectContainer;
-
-for (int i = 0; i < perceived_objects.list.count; ++i) {
-    prefix(("Perceived Object " + std::to_string(i+1)).c_str()) << "\n";
-    ++level;
-
-    const PerceivedObject_t& obj = *perceived_objects.list.array[i];
-
-    // Print only if present
-    if (obj.objectID) prefix("Object ID") << obj.objectID << "\n";
-    if (obj.timeOfMeasurement) prefix("Time Of Measurement") << obj.timeOfMeasurement << "\n";
-    if (obj.objectConfidence) prefix("Object Confidence") << static_cast<int>(obj.objectConfidence) << "\n";
-
-    // Distances
-    if (obj.xDistance.value != 0) { 
-        prefix("X Distance") << "\n"; 
+        // ITS PDU Header
+        const ItsPduHeader_t& header = message->header;
+        prefix("ITS PDU Header") << "\n";
         ++level;
-        prefix("Value") << obj.xDistance.value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.xDistance.confidence) << "\n";
+        prefix("Protocol Version") << static_cast<int>(header.protocolVersion) << "\n";
+        prefix("Message ID") << static_cast<int>(header.messageID) << "\n";
+        prefix("Station ID") << header.stationID << "\n";
         --level;
-    }
 
-    if (obj.yDistance.value != 0) { 
-        prefix("Y Distance") << "\n"; 
+        // CPM content
+        const CollectivePerceptionMessage_t& cpm = message->cpm;
+        prefix("CPM") << "\n";
         ++level;
-        prefix("Value") << obj.yDistance.value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.yDistance.confidence) << "\n";
-        --level;
-    }
 
-    if (obj.zDistance) { 
-        prefix("Z Distance") << "\n"; 
+        prefix("Generation Delta Time") << cpm.generationDeltaTime << "\n";
+
+        // CPM Parameters
+        prefix("CPM Parameters") << "\n";
         ++level;
-        prefix("Value") << obj.zDistance->value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.zDistance->confidence) << "\n";
-        --level;
-    }
 
-    // Speeds
-    if (obj.xSpeed.value != 0 || obj.xSpeed.confidence != 0) {
-        prefix("X Speed") << "\n"; 
+        // Management Container
+        prefix("Management Container") << "\n";
         ++level;
-        prefix("Value") << obj.xSpeed.value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.xSpeed.confidence) << "\n";
-        --level;
-    }
+        const CpmManagementContainer_t& mgmt = cpm.cpmParameters.managementContainer;
 
-    if (obj.ySpeed.value != 0 || obj.ySpeed.confidence != 0) {
-        prefix("Y Speed") << "\n"; 
+        prefix("Station Type") << static_cast<int>(mgmt.stationType) << "\n";
+
+        prefix("Reference Position") << "\n";
         ++level;
-        prefix("Value") << obj.ySpeed.value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.ySpeed.confidence) << "\n";
-        --level;
-    }
+        prefix("Latitude") << mgmt.referencePosition.latitude << "\n";
+        prefix("Longitude") << mgmt.referencePosition.longitude << "\n";
 
-    // Acceleration
-    if (obj.xAcceleration) {
-        prefix("X Acceleration") << "\n"; 
+        prefix("Position Confidence Ellipse") << "\n";
         ++level;
-        prefix("Longitudinal Acceleration Value") << obj.xAcceleration->longitudinalAccelerationValue << "\n";
-        prefix("Longitudinal Acceleration Confidence") << static_cast<int>(obj.xAcceleration->longitudinalAccelerationConfidence) << "\n";
+        prefix("Semi Major Confidence") << mgmt.referencePosition.positionConfidenceEllipse.semiMajorConfidence << "\n";
+        prefix("Semi Minor Confidence") << mgmt.referencePosition.positionConfidenceEllipse.semiMinorConfidence << "\n";
+        prefix("Semi Major Orientation") << mgmt.referencePosition.positionConfidenceEllipse.semiMajorOrientation << "\n";
         --level;
-    }
 
-    // Yaw Angle
-    if (obj.yawAngle) {
-        prefix("Yaw Angle") << "\n"; 
+        prefix("Altitude") << "\n";
         ++level;
-        prefix("Value") << obj.yawAngle->value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.yawAngle->confidence) << "\n";
-        --level;
-    }
+        prefix("Altitude Value") << mgmt.referencePosition.altitude.altitudeValue << "\n";
+        prefix("Altitude Confidence") << static_cast<int>(mgmt.referencePosition.altitude.altitudeConfidence) << "\n";
+        --level; // end altitude
+        --level; // end reference position
+        --level; // end management container
 
-    // Object dimensions
-    if (obj.planarObjectDimension1) {
-        prefix("Planar Object Dimension 1") << "\n"; 
+        // Perceived Object Container
+        prefix("Perceived Object Container") << "\n";
         ++level;
-        prefix("Value") << obj.planarObjectDimension1->value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.planarObjectDimension1->confidence) << "\n";
-        --level;
-    }
 
-    if (obj.verticalObjectDimension) {
-        prefix("Vertical Object Dimension") << "\n"; 
+        // Iterate over perceived objects (if there are multiple)
+        const PerceivedObjectContainer_t& perceived_objects = *cpm.cpmParameters.perceivedObjectContainer;
+
+        for (int i = 0; i < perceived_objects.list.count; ++i) {
+        prefix(("Perceived Object " + std::to_string(i+1)).c_str()) << "\n";
         ++level;
-        prefix("Value") << obj.verticalObjectDimension->value << "\n";
-        prefix("Confidence") << static_cast<int>(obj.verticalObjectDimension->confidence) << "\n";
-        --level;
-    }
 
-    if (obj.objectRefPoint) prefix("objectRefPoint") << obj.objectRefPoint << "\n";
+        const PerceivedObject_t& obj = *perceived_objects.list.array[i];
 
-    --level; // end perceived object
+        // Print only if present
+        if (obj.objectID) prefix("Object ID") << obj.objectID << "\n";
+        if (obj.timeOfMeasurement) prefix("Time Of Measurement") << obj.timeOfMeasurement << "\n";
+        if (obj.objectConfidence) prefix("Object Confidence") << static_cast<int>(obj.objectConfidence) << "\n";
+
+        // Distances
+        if (obj.xDistance.value != 0) { 
+            prefix("X Distance") << "\n"; 
+            ++level;
+            prefix("Value") << obj.xDistance.value << "\n";
+            prefix("Confidence") << static_cast<int>(obj.xDistance.confidence) << "\n";
+            --level;
+        }
+
+        if (obj.yDistance.value != 0) { 
+            prefix("Y Distance") << "\n"; 
+            ++level;
+            prefix("Value") << obj.yDistance.value << "\n";
+            prefix("Confidence") << static_cast<int>(obj.yDistance.confidence) << "\n";
+            --level;
+        }
+
+        if (obj.zDistance) { 
+            prefix("Z Distance") << "\n"; 
+            ++level;
+            prefix("Value") << obj.zDistance->value << "\n";
+            prefix("Confidence") << static_cast<int>(obj.zDistance->confidence) << "\n";
+            --level;
+        }
+
+        // Speeds
+        if (obj.xSpeed.value != 0 || obj.xSpeed.confidence != 0) {
+            prefix("X Speed") << "\n"; 
+            ++level;
+            prefix("Value") << obj.xSpeed.value << "\n";
+            prefix("Confidence") << static_cast<int>(obj.xSpeed.confidence) << "\n";
+            --level;
+        }
+
+        if (obj.ySpeed.value != 0 || obj.ySpeed.confidence != 0) {
+            prefix("Y Speed") << "\n"; 
+            ++level;
+            prefix("Value") << obj.ySpeed.value << "\n";
+            prefix("Confidence") << static_cast<int>(obj.ySpeed.confidence) << "\n";
+            --level;
+        }
+
+        // Acceleration
+        if (obj.xAcceleration) {
+            prefix("X Acceleration") << "\n"; 
+            ++level;
+            prefix("Longitudinal Acceleration Value") << obj.xAcceleration->longitudinalAccelerationValue << "\n";
+            prefix("Longitudinal Acceleration Confidence") << static_cast<int>(obj.xAcceleration->longitudinalAccelerationConfidence) << "\n";
+            --level;
+        }
+
+        // Yaw Angle
+        if (obj.yawAngle) {
+            prefix("Yaw Angle") << "\n"; 
+            ++level;
+            prefix("Value") << obj.yawAngle->value << "\n";
+            prefix("Confidence") << static_cast<int>(obj.yawAngle->confidence) << "\n";
+            --level;
+        }
+
+        // Object dimensions
+        if (obj.planarObjectDimension1) {
+            prefix("Planar Object Dimension 1") << "\n"; 
+            ++level;
+            prefix("Value") << obj.planarObjectDimension1->value << "\n";
+            prefix("Confidence") << static_cast<int>(obj.planarObjectDimension1->confidence) << "\n";
+            --level;
+        }
+
+        if (obj.verticalObjectDimension) {
+            prefix("Vertical Object Dimension") << "\n"; 
+            ++level;
+            prefix("Value") << obj.verticalObjectDimension->value << "\n";
+            prefix("Confidence") << static_cast<int>(obj.verticalObjectDimension->confidence) << "\n";
+            --level;
+        }
+
+        if (obj.objectRefPoint) prefix("objectRefPoint") << obj.objectRefPoint << "\n";
+
+        --level; // end perceived object
+        }
+
+
+            if (cpm.cpmParameters.numberOfPerceivedObjects > 0)
+            prefix("Number Of Perceived Objects") << cpm.cpmParameters.numberOfPerceivedObjects << "\n";
+
+        
+            --level; // end cpmParameters
+            --level; // end CPM
 }
 
-// Finally, only print number of perceived objects if count > 0
-if (cpm.cpmParameters.numberOfPerceivedObjects > 0)
-    prefix("Number Of Perceived Objects") << cpm.cpmParameters.numberOfPerceivedObjects << "\n";
-
-    
-    --level; // end cpmParameters
-    --level; // end CPM
-}
-
-void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::string& indent, unsigned level)
-{
+void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::string& indent, unsigned level){
     auto prefix = [&](const char* field) -> std::ostream& {
         for (unsigned i = 0; i < level; ++i) {
             os << indent;
@@ -319,7 +317,7 @@ void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::
         prefix("Detection Time") << "(invalid INTEGER)" << "\n";
     }
 
-// Reference Time
+
     long referenceTimeValue = 0;
     if (asn_INTEGER2long(&mgmt.referenceTime, &referenceTimeValue) == 0) {
         prefix("Reference Time") << referenceTimeValue << "\n";
@@ -353,31 +351,31 @@ void print_indentedDENM(std::ostream& os, const asn1::Denm& message, const std::
     
    if (mgmt.relevanceDistance != nullptr) {
     prefix("Relevance Distance") << static_cast<int>(*mgmt.relevanceDistance) << "\n";
-} else {
-    prefix("Relevance Distance") << "(null)" << "\n";
-}
-    prefix("Station Type") << static_cast<int>(mgmt.stationType) << "\n";
-    --level; // end management container
+    } else {
+        prefix("Relevance Distance") << "(null)" << "\n";
+    }
+        prefix("Station Type") << static_cast<int>(mgmt.stationType) << "\n";
+        --level; // end management container
 
-    // Situation Container
-    prefix("Situation Container") << "\n";
-    ++level;
-    if (message->denm.situation != nullptr) {
-    const SituationContainer_t& situation = *(message->denm.situation);
+        // Situation Container
+        prefix("Situation Container") << "\n";
+        ++level;
+        if (message->denm.situation != nullptr) {
+        const SituationContainer_t& situation = *(message->denm.situation);
 
-    prefix("Information Quality") << static_cast<int>(situation.informationQuality) << "\n";
+        prefix("Information Quality") << static_cast<int>(situation.informationQuality) << "\n";
 
-    // Event Type (CauseCode)
-    prefix("Event Type") << "\n";
-    ++level;
-    prefix("Cause Code") << static_cast<int>(situation.eventType.causeCode) << "\n";
-    prefix("Sub Cause Code") << static_cast<int>(situation.eventType.subCauseCode) << "\n";
-    --level; // end event type
+        // Event Type (CauseCode)
+        prefix("Event Type") << "\n";
+        ++level;
+        prefix("Cause Code") << static_cast<int>(situation.eventType.causeCode) << "\n";
+        prefix("Sub Cause Code") << static_cast<int>(situation.eventType.subCauseCode) << "\n";
+        --level; // end event type
 
-    --level; // end situation container
-} else {
-    prefix("Situation Container") << "(null)" << "\n";
-}
+        --level; // end situation container
+    } else {
+        prefix("Situation Container") << "(null)" << "\n";
+    }
 }
 
 void ITSApplication::sendCAMToServer(const std::string& data, int size) {
@@ -482,6 +480,10 @@ int ITSApplication::createSocket(){
 
 
 
+void ITSApplication::setSendTologFile(bool send_to_logFile){
+    this->send_to_logFile = send_to_logFile;
+    
+}
 void ITSApplication::setSendToServer(bool send_to_server){
     this->send_to_server = send_to_server;
 }
@@ -515,19 +517,47 @@ void  ITSApplication::sendToServer(u_int64_t* dataToSend, int size){
 
 void ITSApplication::set_interval(Clock::duration interval)
 {
+    
     cam_interval_ = interval;
     runtime_.cancel(this);
     if(cam_interval_<=vanetza::Clock::duration{0}){
         std::cout << "CAM period to low, disabling" << std::endl;
+       
         return;
     }
     
     schedule_timer();
 }
+void ITSApplication::print_generated_DENM(bool flag)
+{
+    print_tx_DENM_ = flag;
+}
 
-void ITSApplication::print_generated_message(bool flag)
+void ITSApplication::print_received_DENM(bool flag)
+{
+    print_rx_DENM_ = flag;
+}
+void ITSApplication::print_generated_CPM(bool flag)
+{
+    print_tx_CPM_ = flag;
+}
+
+void ITSApplication::print_received_CPM(bool flag)
+{
+    print_rx_CPM_ = flag;
+}
+void ITSApplication::print_generated_SPATEM(bool flag)
 {
     print_tx_msg_ = flag;
+}
+
+void ITSApplication::print_received_SPATEM(bool flag)
+{
+    print_rx_SPATEM_ = flag;
+}
+void ITSApplication::print_generated_message(bool flag)
+{
+    print_tx_SPATEM_ = flag;
 }
 
 void ITSApplication::print_received_message(bool flag)
@@ -539,30 +569,9 @@ ITSApplication::PortType ITSApplication::port()
 {
     return btp::ports::CAM;
 }
-int decodeTimeStamp(const asn1::Cam& recvd, char* message){
-    const CoopAwareness_t& cam = recvd->cam;
-    int size = sprintf(message, "%ld",cam.generationDeltaTime);
-    return strlen(message);
-}
-int decodeTimeStampDENM(const asn1::Denm& recvd, char* message){
-    const ManagementContainer_t& mgmt = recvd->denm.management;
 
-// Reference Time
-    long referenceTimeValue = 0;
-    asn_INTEGER2long(&mgmt.referenceTime, &referenceTimeValue);
-    int size = sprintf(message, "%ld",referenceTimeValue);
-    return strlen(message);
-}
-int decodeTimeStampCPM(const asn1::Cpm& recvd, char* message){
-     const CollectivePerceptionMessage_t& cpm = recvd->cpm;
-    int size = sprintf(message, "%ld", cpm.generationDeltaTime);
-    return strlen(message);
-}
-int decodeTimeStampSpatem(const asn1::Spatem& recvd, char* message){
-    const  SPAT_t& spatem = recvd->spat;
-    int size = sprintf(message, "%ld", spatem.timeStamp);
-    return strlen(message);
-}
+
+
 int decode(const asn1::Cam& recvd, char* message){
     const ItsPduHeader_t& header = recvd->header;
     const CoopAwareness_t& cam = recvd->cam;
@@ -678,30 +687,35 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
 
     if (cam) {
         std::cout << "Received CAM with decodable content" << std::endl;
-        if (print_rx_msg_) {
-            std::cout << "Received CAM contains\n";
-            char message2 [500];
-           const CoopAwareness_t& camRef = (*cam)->cam;
+        if(send_to_logFile){
+            char sender_timeStamp_str [500];
+            char sender_station_id_str [500];
+            const ItsPduHeader_t& headerRef = (*cam)->header;
+            const CoopAwareness_t& camRef = (*cam)->cam;
 
-            // Write generationDeltaTime to message2 as a string
-            int size2 = snprintf(message2, sizeof(message2), "%ld", camRef.generationDeltaTime);
+            
+            int size2 = snprintf(sender_timeStamp_str, sizeof(sender_timeStamp_str), "%ld", camRef.generationDeltaTime);
+            int size3 = snprintf(sender_station_id_str, sizeof(sender_station_id_str), "%ld", headerRef.stationID);
 
             // Print the result
-            std::cout << message2 << std::endl;
-
+            std::cout << sender_timeStamp_str << std::endl;
+            std::cout << sender_station_id_str << std::endl;
             // Print the result
-            std::cout << message2 << std::endl;
+           
             const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
             uint16_t gen_delta_time = time_now.count();
-            std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
-            long long timestamp_ms = std::stoll(message2);  
+            std::string receiver_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+            long long timestamp_ms = std::stoll(sender_timeStamp_str);  
             std::time_t tt = timestamp_ms / 1000;
-            std::string time_str = std::ctime(&tt);
-            if (!time_str.empty() && time_str.back() == '\n') {
-            time_str.pop_back();
+            std::string sender_timeStampUnix_str = std::ctime(&tt);
+            if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
+            sender_timeStampUnix_str.pop_back();
             }
-            std::string station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,CAM,"+time_str+","+station_id_str+","+ms_timestamp_str);
+            std::string receiver_station_id_str = std::to_string(this->station_id);
+            appendToFile("log.txt","1,CAM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+        }
+        if (print_rx_msg_) {
+            std::cout << "Received CAM contains\n";
             print_indented(std::cout, *cam, "  ", 1);
             
         }
@@ -736,22 +750,31 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
     }
     else if (denm) {
         std::cout << "Received DENM with decodable content" << std::endl;
-        if (print_rx_msg_) {  
-            std::cout << "Received DENM contains\n";
-            char message2 [500];
-            int size2 = decodeTimeStampDENM(*denm, message2);
-            std::cout << message2<< std::endl; 
+        if(send_to_logFile){
+            char sender_timeStamp_str [500];
+            char sender_station_id_str [500];
+            const ItsPduHeader_t& headerRef = (*denm)->header;
+            const ManagementContainer_t& mgmtRef = (*denm)->denm.management;
+            long referenceTimeValue = 0;
+            asn_INTEGER2long(&mgmtRef.referenceTime, &referenceTimeValue);
+            int size2 = snprintf(sender_timeStamp_str, sizeof(sender_timeStamp_str), "%ld", referenceTimeValue);
+            int size3 = snprintf(sender_station_id_str, sizeof(sender_station_id_str), "%ld", headerRef.stationID);
+            std::cout << sender_timeStamp_str<< std::endl; 
             const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
             uint16_t gen_delta_time = time_now.count();
-            std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
-            long long timestamp_ms = std::stoll(message2);  
+            std::string receiver_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+            long long timestamp_ms = std::stoll(sender_timeStamp_str);  
             std::time_t tt = timestamp_ms / 1000;
-            std::string time_str = std::ctime(&tt);
-            if (!time_str.empty() && time_str.back() == '\n') {
-            time_str.pop_back();
+            std::string sender_timeStampUnix_str = std::ctime(&tt);
+            if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
+            sender_timeStampUnix_str.pop_back();
             }
-            std::string station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,DENM,"+time_str+","+station_id_str+","+ms_timestamp_str);
+            std::string receiver_station_id_str = std::to_string(this->station_id);
+            appendToFile("log.txt","1,DENM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+        }
+        if (print_rx_DENM_) {  
+            std::cout << "Received DENM contains\n";
+           
             print_indentedDENM(std::cout, *denm, "  ", 1);
         }
 		
@@ -774,43 +797,57 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
     else if (cpm) {
         
         std::cout << "Received CPM with decodable content" << std::endl;
-        if (print_rx_msg_) {
-            std::cout << "Received CPM contains\n";
-            char message2 [500];
-            int size2 = decodeTimeStampCPM(*cpm, message2);
-            std::cout << message2<< std::endl; 
-            const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
+        if(send_to_logFile){
+            char sender_timeStamp_str [500];
+            char sender_station_id_str [500];
+            const ItsPduHeader_t& headerRef = (*cpm)->header;
+            const CollectivePerceptionMessage_t& cpmRef = (*cpm)->cpm;
+            int size2 = snprintf(sender_timeStamp_str, sizeof(sender_timeStamp_str), "%ld", cpmRef.generationDeltaTime);
+            int size3 = snprintf(sender_station_id_str, sizeof(sender_station_id_str), "%ld", headerRef.stationID);
+            
+           const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
             uint16_t gen_delta_time = time_now.count();
-            std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
-            long long timestamp_ms = std::stoll(message2);  
+            std::string receiver_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+            long long timestamp_ms = std::stoll(sender_timeStamp_str);  
             std::time_t tt = timestamp_ms / 1000;
-            std::string time_str = std::ctime(&tt);
-            if (!time_str.empty() && time_str.back() == '\n') {
-            time_str.pop_back();
+            std::string sender_timeStampUnix_str = std::ctime(&tt);
+            if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
+            sender_timeStampUnix_str.pop_back();
             }
-            std::string station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,CPM,"+time_str+","+station_id_str+","+ms_timestamp_str);
+            std::string receiver_station_id_str = std::to_string(this->station_id);
+            appendToFile("log.txt","1,CPM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+        }
+        if (print_rx_CPM_) {
+            std::cout << "Received CPM contains\n";
+           
             print_indentedCPM(std::cout, *cpm, "  ", 1);
         }
     }
     else if(spatem){
         std::cout << "Received SPATEM with decodable content" << std::endl;
-        if (print_rx_msg_) {
-            std::cout << "Received SPATEM contains\n";
-          char message2 [500];
-            int size2 = decodeTimeStampSpatem(*spatem, message2);
-            std::cout << message2<< std::endl; 
-            const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
+        if(send_to_logFile){
+            char sender_timeStamp_str [500];
+            char sender_station_id_str [500];
+            const ItsPduHeader_t& headerRef = (*spatem)->header;
+            const  SPAT_t& spatemRef = (*spatem)->spat;
+            int size = sprintf(sender_timeStamp_str, "%ld", spatemRef.timeStamp);
+            int size3 = snprintf(sender_station_id_str, sizeof(sender_station_id_str), "%ld", headerRef.stationID);
+           
+                  const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
             uint16_t gen_delta_time = time_now.count();
-            std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
-            long long timestamp_ms = std::stoll(message2);  
+            std::string receiver_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+            long long timestamp_ms = std::stoll(sender_timeStamp_str);  
             std::time_t tt = timestamp_ms / 1000;
-            std::string time_str = std::ctime(&tt);
-            if (!time_str.empty() && time_str.back() == '\n') {
-            time_str.pop_back();
+            std::string sender_timeStampUnix_str = std::ctime(&tt);
+            if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
+            sender_timeStampUnix_str.pop_back();
             }
-            std::string station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,SPATEM,"+time_str+","+station_id_str+","+ms_timestamp_str);
+            std::string receiver_station_id_str = std::to_string(this->station_id);
+            appendToFile("log.txt","1,SPATEM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+        }
+        if (print_rx_SPATEM_) {
+            std::cout << "Received SPATEM contains\n";
+         
              print_indentedSpatem(std::cout, *spatem, "  ", 1);
         }
         if(send_to_server){
@@ -962,15 +999,16 @@ void ITSApplication::on_timer(Clock::time_point)
         throw std::runtime_error("CAM application data request failed");
     }
 
-    
-    std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
-    std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
-    std::string time_str = std::ctime(&tt);
-    if (!time_str.empty() && time_str.back() == '\n') {
-    time_str.pop_back();
+    if(send_to_logFile){
+        std::string sender_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+        std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
+        std::string sender_timeStampUnix_str = std::ctime(&tt);
+        if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
+        sender_timeStampUnix_str.pop_back();
+        }
+        std::string sender_station_id_str = std::to_string(this->station_id);
+        appendToFile("log.txt","0,CAM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
     }
-    std::string station_id_str = std::to_string(this->station_id);
-    appendToFile("log.txt","0,CAM,"+time_str+","+station_id_str+","+ms_timestamp_str);
 }
 
 void ITSApplication::sendDenm(const json& j){
@@ -1001,17 +1039,18 @@ void ITSApplication::sendDenm(const json& j){
 
 
         //detection time
-    const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());
+    
     INTEGER_t* detectionTime = &management.detectionTime;
-    long timeValue = time_now.count();
-    int ret = asn_long2INTEGER(detectionTime, timeValue);
+    const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());
+    uint16_t timeValue = time_now.count(); // Mask to get the lower 16 bits
+    int ret = asn_long2INTEGER(detectionTime, timeValue * GenerationDeltaTime_oneMilliSec);
     if (ret != 0) {
         throw std::runtime_error("Failed to set detectionTime integer");
     }
 
     // Same for referenceTime
     INTEGER_t* referenceTime = &management.referenceTime;
-    ret = asn_long2INTEGER(referenceTime, timeValue);
+    ret = asn_long2INTEGER(referenceTime, timeValue * GenerationDeltaTime_oneMilliSec);
     if (ret != 0) {
         throw std::runtime_error("Failed to set referenceTime integer");
     }
@@ -1086,7 +1125,7 @@ void ITSApplication::sendDenm(const json& j){
     message->denm.situation = situation;
 
     //print generated DENM
-    if (print_tx_msg_) {
+    if (print_tx_DENM_) {
         std::cout << "Generated DENM contains\n";
         asn_fprint(stdout, &asn_DEF_DENM,message.operator->());
     }
@@ -1121,17 +1160,17 @@ void ITSApplication::sendDenm(const json& j){
         std::cout << "-- Vanetza UPER Encoding Error --\nCheck that the message format follows ETSI spec\n" << e.what() << std::endl;
 
     }
-     
-    uint16_t gen_delta_time = time_now.count();
-    std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
-    std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
-    std::string time_str = std::ctime(&tt);
-    if (!time_str.empty() && time_str.back() == '\n') {
-    time_str.pop_back();
+     if(send_to_logFile){
+        uint16_t gen_delta_time = time_now.count();
+    std::string sender_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+        std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
+        std::string sender_timeStampUnix_str = std::ctime(&tt);
+        if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
+        sender_timeStampUnix_str.pop_back();
+        }
+        std::string sender_station_id_str = std::to_string(this->station_id);
+        appendToFile("log.txt","0,DENM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
     }
-    std::string station_id_str = std::to_string(this->station_id);
-    appendToFile("log.txt","0,DENM,"+time_str+","+station_id_str+","+ms_timestamp_str);
-	
 }
 
 void ITSApplication::setMultihop(const std::string& type) 
@@ -1339,7 +1378,7 @@ void ITSApplication::sendCPM(const json& j){
     //number of perceivedobjects value
     cpmparams.numberOfPerceivedObjects = cpmparams.perceivedObjectContainer->list.count;
 
-    if (print_tx_msg_) {
+    if (print_tx_CPM_) {
         std::cout << "Generated Full CPM contains:\n";
         asn_fprint(stdout, &asn_DEF_CPM, cpmmessage.operator->());
     }
@@ -1358,14 +1397,16 @@ void ITSApplication::sendCPM(const json& j){
     } catch(std::runtime_error& e) {
         std::cout << "-- Vanetza UPER Encoding Error --\nCheck that the message format follows ETSI spec\n" << e.what() << std::endl;        
     }
-    std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
-    std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
-    std::string time_str = std::ctime(&tt);
-    if (!time_str.empty() && time_str.back() == '\n') {
-    time_str.pop_back();
+    if(send_to_logFile){
+        std::string sender_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+        std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
+        std::string sender_timeStampUnix_str = std::ctime(&tt);
+        if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
+        sender_timeStampUnix_str.pop_back();
+        }
+        std::string sender_station_id_str = std::to_string(this->station_id);
+        appendToFile("log.txt","0,CPM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
     }
-    std::string station_id_str = std::to_string(this->station_id);
-    appendToFile("log.txt","0,CPM,"+time_str+","+station_id_str+","+ms_timestamp_str);
 }
 
 void ITSApplication::sendSpatem(const json& j){
@@ -1378,9 +1419,16 @@ void ITSApplication::sendSpatem(const json& j){
 
     SPAT_t& spatem = message->spat;
     const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());
-    uint16_t gen_delta_time = time_now.count();
+uint16_t gen_delta_time = static_cast<uint16_t>(time_now.count() % 65536); // wrap to 16-bit
 
-    *spatem.timeStamp = gen_delta_time * GenerationDeltaTime_oneMilliSec;
+
+
+
+// SPATEM uses a pointer to long — store same numeric value
+MinuteOfTheYear_t* timeStampValue = new MinuteOfTheYear_t;
+*timeStampValue = static_cast<MinuteOfTheYear_t>(gen_delta_time*GenerationDeltaTime_oneMilliSec); // same kind of value
+
+spatem.timeStamp = timeStampValue;
     for (const auto& intersectionObj : j) {
 
         spatem.intersections= *vanetza::asn1::allocate<IntersectionStateList_t>();
@@ -1410,7 +1458,7 @@ void ITSApplication::sendSpatem(const json& j){
         ASN_SEQUENCE_ADD(&spatem.intersections.list, intersectionState);  
     }
     
-    if (print_tx_msg_) {
+    if (print_tx_SPATEM_) {
         std::cout << "Generated Full SPATEM contains:\n";
         asn_fprint(stdout, &asn_DEF_SPATEM, message.operator->());
     }
@@ -1431,13 +1479,14 @@ void ITSApplication::sendSpatem(const json& j){
         std::cout << "-- Vanetza UPER Encoding Error --\nCheck that the message format follows ETSI spec\n" << e.what() << std::endl;
 
     }
-   
-    std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
-    std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
-    std::string time_str = std::ctime(&tt);
-    if (!time_str.empty() && time_str.back() == '\n') {
-    time_str.pop_back();
+    if(send_to_logFile){
+        std::string sender_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+        std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
+        std::string sender_timeStampUnix_str = std::ctime(&tt);
+        if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
+        sender_timeStampUnix_str.pop_back();
+        }
+        std::string sender_station_id_str = std::to_string(this->station_id);
+        appendToFile("log.txt","0,SPATEM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
     }
-    std::string station_id_str = std::to_string(this->station_id);
-    appendToFile("log.txt","0,SPATEM,"+time_str+","+station_id_str+","+ms_timestamp_str);
 }
