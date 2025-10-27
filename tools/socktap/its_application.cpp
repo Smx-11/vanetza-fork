@@ -558,6 +558,11 @@ int decodeTimeStampCPM(const asn1::Cpm& recvd, char* message){
     int size = sprintf(message, "%ld", cpm.generationDeltaTime);
     return strlen(message);
 }
+int decodeTimeStampSpatem(const asn1::Spatem& recvd, char* message){
+    const  SPAT_t& spatem = recvd->spat;
+    int size = sprintf(message, "%ld", spatem.timeStamp);
+    return strlen(message);
+}
 int decode(const asn1::Cam& recvd, char* message){
     const ItsPduHeader_t& header = recvd->header;
     const CoopAwareness_t& cam = recvd->cam;
@@ -676,8 +681,16 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
         if (print_rx_msg_) {
             std::cout << "Received CAM contains\n";
             char message2 [500];
-            int size2 = decodeTimeStamp(*cam, message2);
-            std::cout << message2<< std::endl; 
+           const CoopAwareness_t& camRef = (*cam)->cam;
+
+            // Write generationDeltaTime to message2 as a string
+            int size2 = snprintf(message2, sizeof(message2), "%ld", camRef.generationDeltaTime);
+
+            // Print the result
+            std::cout << message2 << std::endl;
+
+            // Print the result
+            std::cout << message2 << std::endl;
             const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
             uint16_t gen_delta_time = time_now.count();
             std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
@@ -784,8 +797,8 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
         std::cout << "Received SPATEM with decodable content" << std::endl;
         if (print_rx_msg_) {
             std::cout << "Received SPATEM contains\n";
-           /*  char message2 [500];
-            int size2 = decodeTimeStamp(*spatem, message2);
+          char message2 [500];
+            int size2 = decodeTimeStampSpatem(*spatem, message2);
             std::cout << message2<< std::endl; 
             const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
             uint16_t gen_delta_time = time_now.count();
@@ -797,7 +810,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             time_str.pop_back();
             }
             std::string station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,SPATEM,"+time_str+","+station_id_str+","+ms_timestamp_str);*/
+            appendToFile("log.txt","1,SPATEM,"+time_str+","+station_id_str+","+ms_timestamp_str);
              print_indentedSpatem(std::cout, *spatem, "  ", 1);
         }
         if(send_to_server){
@@ -1364,6 +1377,10 @@ void ITSApplication::sendSpatem(const json& j){
     header.stationID = this->station_id;
 
     SPAT_t& spatem = message->spat;
+    const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());
+    uint16_t gen_delta_time = time_now.count();
+
+    *spatem.timeStamp = gen_delta_time * GenerationDeltaTime_oneMilliSec;
     for (const auto& intersectionObj : j) {
 
         spatem.intersections= *vanetza::asn1::allocate<IntersectionStateList_t>();
@@ -1414,8 +1431,7 @@ void ITSApplication::sendSpatem(const json& j){
         std::cout << "-- Vanetza UPER Encoding Error --\nCheck that the message format follows ETSI spec\n" << e.what() << std::endl;
 
     }
-    const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());
-    uint16_t gen_delta_time = time_now.count();
+   
     std::string ms_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
     std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
     std::string time_str = std::ctime(&tt);
