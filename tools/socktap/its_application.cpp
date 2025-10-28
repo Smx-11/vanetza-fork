@@ -710,7 +710,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             sender_timeStampUnix_str.pop_back();
             }
             std::string receiver_station_id_str = std::to_string(this->station_id);
-            appendTologFile("log.txt","1,CAM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+            appendTologFile("log.txt","1,CAM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timeStamp_str+","+receiver_station_id_str+","+receiver_timestamp_str);
         }
         if (print_rx_msg_) {
             std::cout << "Received CAM contains\n";
@@ -768,7 +768,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             sender_timeStampUnix_str.pop_back();
             }
             std::string receiver_station_id_str = std::to_string(this->station_id);
-            appendTologFile("log.txt","1,DENM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+            appendTologFile("log.txt","1,DENM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timeStamp_str+","+receiver_station_id_str+","+receiver_timestamp_str);
         }
         if (print_rx_DENM_) {  
             std::cout << "Received DENM contains\n";
@@ -813,7 +813,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             sender_timeStampUnix_str.pop_back();
             }
             std::string receiver_station_id_str = std::to_string(this->station_id);
-            appendTologFile("log.txt","1,CPM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+            appendTologFile("log.txt","1,CPM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timeStamp_str+","+receiver_station_id_str+","+receiver_timestamp_str);
         }
         if (print_rx_CPM_) {
             std::cout << "Received CPM contains\n";
