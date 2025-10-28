@@ -22,12 +22,10 @@
 #include "nlohmann/json.hpp"
 
 // This is a very simple CA application sending CAMs at a fixed rate.
-
 using namespace vanetza;
 using namespace vanetza::facilities;
 using namespace std::chrono;
 namespace asio = boost::asio;
-
 
 ITSApplication::ITSApplication(PositionProvider& positioning, Runtime& rt, asio::io_service& io_service, unsigned short denm_port) :
     positioning_(positioning), runtime_(rt), cam_interval_(seconds(1)),
@@ -41,7 +39,7 @@ ITSApplication::ITSApplication(PositionProvider& positioning, Runtime& rt, asio:
     this->start_receive();
 	
 }
-void appendToFile(const std::string& filename, const std::string& text) {
+void appendTologFile(const std::string& filename, const std::string& text) {
     std::ofstream file(filename, std::ios::app); // open in append mode
     if (file.is_open()) {
         file << text << "\n";
@@ -68,7 +66,7 @@ void print_indentedSpatem(std::ostream& os, const vanetza::asn1::Spatem& message
 
     // SPATEM content
     const SPAT_t& spatem = message->spat;
-
+    prefix("Minute of the year") << spatem.timeStamp << "\n";
     prefix("Intersections") << "\n";
     ++level;
     for (int i = 0; i < spatem.intersections.list.count; ++i) {
@@ -712,7 +710,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             sender_timeStampUnix_str.pop_back();
             }
             std::string receiver_station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,CAM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+            appendTologFile("log.txt","1,CAM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
         }
         if (print_rx_msg_) {
             std::cout << "Received CAM contains\n";
@@ -770,7 +768,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             sender_timeStampUnix_str.pop_back();
             }
             std::string receiver_station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,DENM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+            appendTologFile("log.txt","1,DENM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
         }
         if (print_rx_DENM_) {  
             std::cout << "Received DENM contains\n";
@@ -815,7 +813,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             sender_timeStampUnix_str.pop_back();
             }
             std::string receiver_station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,CPM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+            appendTologFile("log.txt","1,CPM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
         }
         if (print_rx_CPM_) {
             std::cout << "Received CPM contains\n";
@@ -830,11 +828,11 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             char sender_station_id_str [500];
             const ItsPduHeader_t& headerRef = (*spatem)->header;
             const  SPAT_t& spatemRef = (*spatem)->spat;
-            int size = sprintf(sender_timeStamp_str, "%ld", spatemRef.timeStamp);
+            int size = sprintf(sender_timeStamp_str, "%ld", *spatemRef.timeStamp);
             int size3 = snprintf(sender_station_id_str, sizeof(sender_station_id_str), "%ld", headerRef.stationID);
            
-                  const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
-            uint16_t gen_delta_time = time_now.count();
+            const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());   
+            uint16_t gen_delta_time = static_cast<uint16_t>(time_now.count() % 65536);
             std::string receiver_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
             long long timestamp_ms = std::stoll(sender_timeStamp_str);  
             std::time_t tt = timestamp_ms / 1000;
@@ -843,7 +841,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             sender_timeStampUnix_str.pop_back();
             }
             std::string receiver_station_id_str = std::to_string(this->station_id);
-            appendToFile("log.txt","1,SPATEM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+            appendTologFile("log.txt","1,SPATEM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
         }
         if (print_rx_SPATEM_) {
             std::cout << "Received SPATEM contains\n";
@@ -1007,7 +1005,7 @@ void ITSApplication::on_timer(Clock::time_point)
         sender_timeStampUnix_str.pop_back();
         }
         std::string sender_station_id_str = std::to_string(this->station_id);
-        appendToFile("log.txt","0,CAM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
+        appendTologFile("log.txt","0,CAM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
     }
 }
 
@@ -1102,16 +1100,16 @@ void ITSApplication::sendDenm(const json& j){
     int causeCode = 0;  // Default to "Unavailable"
     int subCauseCode = 0;  // Default to "Generic"
 
-    if (eventTypeStr == "speeding" || eventTypeStr == "Jerk Detected" || eventTypeStr == "SPEED_INFRACTION") {
+    if (eventTypeStr == "speeding" || eventTypeStr == "JERK_INFRACTION" || eventTypeStr == "SPEED_INFRACTION") {
         causeCode = 99;  // Dangerous situation
         // subCauseCode remains 0 (generic)
-    } else if (eventTypeStr == "Entity outside safe zone") {
+    } else if (eventTypeStr == "SAFEZONE_INFRACION") {
         causeCode = 9;  // Hazardous location - Surface condition
         // subCauseCode remains 0 (generic)
     } else if(eventTypeStr == "collisionRisk"){
         causeCode = 97; // Collision risk 
         subCauseCode = 4; // Collision risk involving vulnerable road user 
-    }else if(eventTypeStr == "None" ||eventTypeStr == "UNKNOWN"  ){ //termination code
+    }else if(eventTypeStr == "UNKNOWN"||eventTypeStr == "collisionRiskEnd" ){ //termination code
         causeCode = 0;
         subCauseCode = 0;
         management.termination = (Termination_t*) calloc(1, sizeof(Termination_t));
@@ -1162,19 +1160,18 @@ void ITSApplication::sendDenm(const json& j){
     }
      if(send_to_logFile){
         uint16_t gen_delta_time = time_now.count();
-    std::string sender_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
+        std::string sender_timestamp_str = std::to_string(gen_delta_time * GenerationDeltaTime_oneMilliSec);
         std::time_t tt = (gen_delta_time * GenerationDeltaTime_oneMilliSec) / 1000;
         std::string sender_timeStampUnix_str = std::ctime(&tt);
         if (!sender_timeStampUnix_str.empty() && sender_timeStampUnix_str.back() == '\n') {
         sender_timeStampUnix_str.pop_back();
         }
         std::string sender_station_id_str = std::to_string(this->station_id);
-        appendToFile("log.txt","0,DENM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
+        appendTologFile("log.txt","0,DENM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
     }
 }
 
-void ITSApplication::setMultihop(const std::string& type) 
-{
+void ITSApplication::setMultihop(const std::string& type) {
 	std::cout << "multihop type:" << type << std::endl;
 
 	if (type == "off") {
@@ -1191,8 +1188,7 @@ void ITSApplication::setMultihop(const std::string& type)
 	}
 }
 
-MultihopType ITSApplication::getMultihop() 
-{
+MultihopType ITSApplication::getMultihop() {
 	return multihopType;
 }
 void ITSApplication::sendCPM(const json& j){
@@ -1364,18 +1360,11 @@ void ITSApplication::sendCPM(const json& j){
             asn_obj->verticalObjectDimension->confidence = obj.value("vehicleLengthConfidence", 0);
         }
 
-        // 10. Object confidence - default - unknown
         asn_obj->objectConfidence = 0;
-
-        // object RefPoint - Defualt
         asn_obj->objectRefPoint = 0;
-
-
-        // 12. Add to ASN.1 sequence
         ASN_SEQUENCE_ADD(&cpmparams.perceivedObjectContainer->list, asn_obj);
     }
 
-    //number of perceivedobjects value
     cpmparams.numberOfPerceivedObjects = cpmparams.perceivedObjectContainer->list.count;
 
     if (print_tx_CPM_) {
@@ -1405,7 +1394,7 @@ void ITSApplication::sendCPM(const json& j){
         sender_timeStampUnix_str.pop_back();
         }
         std::string sender_station_id_str = std::to_string(this->station_id);
-        appendToFile("log.txt","0,CPM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
+        appendTologFile("log.txt","0,CPM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
     }
 }
 
@@ -1419,16 +1408,11 @@ void ITSApplication::sendSpatem(const json& j){
 
     SPAT_t& spatem = message->spat;
     const auto time_now = duration_cast<milliseconds>(runtime_.now().time_since_epoch());
-uint16_t gen_delta_time = static_cast<uint16_t>(time_now.count() % 65536); // wrap to 16-bit
+    uint16_t gen_delta_time = static_cast<uint16_t>(time_now.count() % 65536);
+    MinuteOfTheYear_t* timeStampValue = new MinuteOfTheYear_t;
+    *timeStampValue = static_cast<MinuteOfTheYear_t>(gen_delta_time); 
 
-
-
-
-// SPATEM uses a pointer to long — store same numeric value
-MinuteOfTheYear_t* timeStampValue = new MinuteOfTheYear_t;
-*timeStampValue = static_cast<MinuteOfTheYear_t>(gen_delta_time*GenerationDeltaTime_oneMilliSec); // same kind of value
-
-spatem.timeStamp = timeStampValue;
+    spatem.timeStamp = timeStampValue;
     for (const auto& intersectionObj : j) {
 
         spatem.intersections= *vanetza::asn1::allocate<IntersectionStateList_t>();
@@ -1487,6 +1471,6 @@ spatem.timeStamp = timeStampValue;
         sender_timeStampUnix_str.pop_back();
         }
         std::string sender_station_id_str = std::to_string(this->station_id);
-        appendToFile("log.txt","0,SPATEM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
+        appendTologFile("log.txt","0,SPATEM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timestamp_str);
     }
 }
