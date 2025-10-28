@@ -841,7 +841,7 @@ void ITSApplication::indicate(const DataIndication& indication, UpPacketPtr pack
             sender_timeStampUnix_str.pop_back();
             }
             std::string receiver_station_id_str = std::to_string(this->station_id);
-            appendTologFile("log.txt","1,SPATEM,"+sender_timeStampUnix_str+","+receiver_station_id_str+","+receiver_timestamp_str+","+sender_station_id_str+","+sender_timeStamp_str);
+            appendTologFile("log.txt","1,SPATEM,"+sender_timeStampUnix_str+","+sender_station_id_str+","+sender_timeStamp_str+","+receiver_station_id_str+","+receiver_timestamp_str);
         }
         if (print_rx_SPATEM_) {
             std::cout << "Received SPATEM contains\n";
